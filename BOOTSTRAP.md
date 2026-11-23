@@ -5,11 +5,11 @@
 ## 0. 读取顺序与代码审阅
 1. `README.md`
 2. `BOOTSTRAP.md`
-3. `install.py`（先审阅，见下）
+3. `install.sh` 与 `install.ps1`（先审阅，见下）
 4. `AGENTS.md`
 5. `skills/*/SKILL.md`
 
-先审阅 `install.py`：确认它只使用标准库、无网络访问（`socket`/`urllib`/`requests`）、无子进程（`subprocess`/`os.system`）、无 `eval`/`exec`；它只应读写宿主规则文件、`skills/*/SKILL.md` 与 `_backup/`。发现任何超出此范围的行为，停下汇报，不得执行。
+先审阅两个安装器：确认它们无网络访问、无 `eval`、无任意代码执行；`install.sh` 只调用脚本头部列出的常规文本工具，`install.ps1` 无子进程；它们只应读写宿主规则文件、`skills/*/SKILL.md` 与 `_backup/`。发现任何超出此范围的行为，停下汇报，不得执行。
 
 ## 1. 克隆到临时目录并记录版本
 ```bash
@@ -18,18 +18,23 @@ git clone https://github.com/zhuoH27/zhuoh-agent-config.git agent-config
 cd agent-config
 git rev-parse HEAD   # 记下 commit hash，汇报时附上
 ```
-不能 clone 时，下载 ZIP 并解压，进入含 `install.py` 的目录。不要把仓库放进 `~/.claude` 或 `~/.codex` 里面。
+不能 clone 时，下载 ZIP 并解压，进入含 `install.sh` / `install.ps1` 的目录。不要把仓库放进 `~/.claude` 或 `~/.codex` 里面。
 
 ## 2. 识别宿主
+macOS / Linux（或 Git Bash）：
 ```bash
-python install.py --dry-run --target auto
+sh install.sh --dry-run --target auto
+```
+Windows（Windows PowerShell 5.1+）：
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --dry-run --target auto
 ```
 - 若输出“同时检测到 ~/.claude 与 ~/.codex”，停下来问用户选 `claude`、`codex` 还是 `both`。不要替用户选。
 - 若环境变量已唯一指向宿主，按输出继续。
-- Python 不可用时改用 `py install.py ...`，不要跳过 dry-run。
+- 不要跳过 dry-run；两个脚本都不需要 Python。
 
 ## 3. 展示计划
-把 dry-run 输出原样给用户（含区块 diff，如有），说明：
+把 dry-run 输出原样给用户（含区块差异摘要，如有），说明：
 - 将新建或替换哪个规则文件；
 - 规则文件是追加还是整文件替换；
 - 将新建或覆盖哪些 Skill；
@@ -40,17 +45,20 @@ python install.py --dry-run --target auto
 dry-run 输出中出现 `[警告]` 时必须停下，逐条向用户说明，由用户决定处理方式（人工合并、`--mode replace` 或放弃），不得自行选择 `--mode`。
 
 ## 4. 执行
+macOS / Linux（或 Git Bash）：
 ```bash
-python install.py --apply --target <已确认的 target>
+sh install.sh --apply --target <已确认的 target>
+```
+Windows：
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --apply --target <已确认的 target>
 ```
 - 用户未批准，不执行。
 - 权限或沙箱拒绝时停止并汇报，不要换工具、换路径或放宽沙箱参数。
 - 不要修改 `_backup/` 里的任何历史备份。
 
 ## 5. 校验
-```bash
-python install.py --verify --target <target>
-```
+与上一步同款命令，把 `--apply` 换成 `--verify --target <target>`。
 把结果表贴给用户。任何一项 FAIL 都停下，不要声称成功。
 
 ## 6. 汇报与收尾

@@ -53,7 +53,7 @@ description: "创建、修改、排版 PPT（.pptx）、开题或毕业答辩汇
 ## 二、视觉与排版硬性规范
 1. **字体与字号底线**：
    - **字体搭配**：中文统一使用**微软雅黑（Microsoft YaHei）**，英文及数字统一使用 **Times New Roman**（全篇严格控制在 2 种字体以内）。
-   - 用代码生成 PPT 时，必须同时显式设置 `a:latin`、`a:ea`、`a:cs`。`python-pptx` 的 `font.name` 只写入 `a:latin`，需操作 XML 补全。参考片段（`[未经实际验证]`，使用前必须在目标环境实测，并读取生成文件的 XML 核对）：
+   - 用代码生成 PPT 时，必须同时显式设置 `a:latin`、`a:ea`、`a:cs`。`python-pptx` 的 `font.name` 只写入 `a:latin`，需操作 XML 补全。参考片段（已实测验证，仓库 `tests/test_pptx_font.py` 有对应测试）：
 ```python
 from pptx.oxml.ns import qn
 def set_run_fonts(run, zh="Microsoft YaHei", en="Times New Roman"):
