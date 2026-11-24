@@ -8,7 +8,7 @@
 - 自带备份、受管区块、dry-run 与校验；支持每次更新时安全覆盖安装；不删除旧 Skill 与用户额外文件，不自动改 `.gitignore`。
 
 ## 给 AI 的一键指令
-把下面整段发给新 agent（fork 本仓库的人请把 URL 换成自己的仓库地址）：
+把下面整段发给新 agent（fork 本仓库的人请把 URL 换成自己的仓库地址）。信任模型提示：一键指令会直接执行线上内容；需要可复现时把 URL 换成 tag 或 commit 的固定版本地址，而不是 `main` 分支：
 
 ```text
 请阅读并执行 https://github.com/zhuoH27/zhuoh-agent-config 的 BOOTSTRAP.md。

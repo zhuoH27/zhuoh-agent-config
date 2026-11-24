@@ -8,6 +8,7 @@
 拒绝写入。备份统一存 ~/.zhuoh-agent-backup/<TS>/，不污染技能目录。
 """
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -184,12 +185,12 @@ def resolve_targets(target_arg, mf, home, env=None):
             return ["codex"], "环境变量 -> codex"
         existing = [k for k in known if expand_user(mf.hosts[k]["root"], home).exists()]
         if "claude" in existing and "codex" in existing:
-            die("同时检测到 ~/.claude 与 ~/.codex，无法唯一确定宿主。\n"
-                "请用 --target claude、--target codex 或 --target both 明确指定。")
+            die("同时检测到 ~/.claude 与 ~/.codex，无法唯一确定宿主。\n请用 --target claude、--target codex 或 --target both 明确指定。")
+        if len(existing) > 1:
+            die(f"检测到多个宿主（{'、'.join(existing)}），无法唯一确定，请用 --target 明确指定。")
         if len(existing) == 1:
             k = existing[0]
-            label = {"claude": "仅存在 ~/.claude", "codex": "仅存在 ~/.codex"}.get(
-                k, f"仅存在 {mf.hosts[k]['root']}")
+            label = {"claude": "仅存在 ~/.claude", "codex": "仅存在 ~/.codex"}.get(k, f"仅存在 {mf.hosts[k]['root']}")
             return [k], label
         die("未检测到 ~/.claude 或 ~/.codex（或 ~/.agents），请用 --target 明确指定（可先创建对应目录）。")
     if target_arg == "both":
@@ -300,7 +301,7 @@ def apply_rules(mf, key, home, mode, repo, ts, dry_run):
     label = {"new": "新建", "append": "追加受管区块", "replace_block": "替换受管区块",
              "replace_file": "整文件替换"}[st]
     if dry_run:
-        suffix = f"；{reason}" if reason.startswith("追加") and "警告" in reason else ""
+        suffix = f"；{reason.split('；', 1)[1]}" if reason.startswith("追加") and "警告" in reason else ""
         print(f"  规则文件: {label}{suffix}（{tgt}）")
         if bak:
             print(f"    备份 -> {bak}")
@@ -500,7 +501,7 @@ def audit_repo(repo):
         except (OSError, json.JSONDecodeError):
             pass
     files = [p for p in repo.rglob("*") if p.is_file()]
-    files = [p for p in files if not (AUDIT_EXCLUDE_DIRS & set(p.relative_to(repo).parts))]
+    files = [p for p in files if not any(fnmatch.fnmatch(x, pat) for x in p.relative_to(repo).parts for pat in AUDIT_EXCLUDE_DIRS)]
     for p in files:
         if p.suffix.lower() not in AUDIT_TEXT_SUFFIXES or p.name == "REFACTOR_PLAN.md":
             continue

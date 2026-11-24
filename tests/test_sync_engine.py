@@ -210,6 +210,15 @@ def test_auto_two_hosts_conflict(tmp_path):
     assert "同时检测到 ~/.claude 与 ~/.codex" in out
 
 
+def test_auto_multi_hosts_message(tmp_path):
+    home = make_home(tmp_path)
+    (home / ".claude").mkdir()
+    (home / ".agents").mkdir()
+    rc, out = run_engine("setup", "--target", "auto", "--home", str(home))
+    assert rc != 0
+    assert "检测到多个宿主" in out
+
+
 def test_auto_no_hosts_error(tmp_path):
     home = make_home(tmp_path)
     rc, out = run_engine("setup", "--target", "auto", "--home", str(home))
@@ -450,6 +459,14 @@ def test_audit_catches_fake_key(tmp_path):
     rc, out = run_engine("audit", repo=victim)
     assert rc == 2, out
     assert "leaked.md" in out
+
+
+def test_audit_excludes_glob_dirs(tmp_path):
+    """AUDIT_EXCLUDE_DIRS 的 _t* 是通配排除，不是字面量。"""
+    victim = make_repo_copy(tmp_path)
+    write(victim / "_t9" / "leaked.md", "token: 'abcdefgh12345678'\n")
+    rc, out = run_engine("audit", repo=victim)
+    assert rc == 0, out
 
 
 def test_audit_clean_on_baseline():
