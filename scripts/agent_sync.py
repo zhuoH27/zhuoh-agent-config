@@ -266,7 +266,7 @@ def plan_rules(mf, key, home, mode, repo, ts):
         if "全局核心铁律" in text or "不可逆操作确认" in text:
             reason += "；[警告] 疑似已有旧版未受管铁律，直接追加会重复或冲突，" \
                       "请人工合并，或经用户确认后改用 --mode replace"
-        return "append", tgt, bak if "警告" in reason else None, reason
+        return "append", tgt, bak, reason
     if tb != 1 or te != 1 or xb != 1 or xe != 1:
         return "error", tgt, None, "标记异常：受管标记须各出现恰好一次且独占一行"
     if not text.strip():
@@ -274,7 +274,7 @@ def plan_rules(mf, key, home, mode, repo, ts):
     old = text[text.index(BEGIN_MARK):text.index(END_MARK) + len(END_MARK)]
     if norm_text(old) == norm_text(src_block):
         if raw[:3] == b"\xef\xbb\xbf":
-            return "replace_block", tgt, None, "已最新，仅剥离 BOM"
+            return "replace_block", tgt, make_backup(mf.backup_root(home), tgt, ts, dry_run=True), "已最新，仅剥离 BOM"
         return "skip", tgt, None, "跳过：已最新"
     bak = make_backup(mf.backup_root(home), tgt, ts, dry_run=True)
     return "replace_block", tgt, bak, "替换受管区块"
@@ -305,14 +305,14 @@ def apply_rules(mf, key, home, mode, repo, ts, dry_run):
         if bak:
             print(f"    备份 -> {bak}")
         return
+    if bak:
+        make_backup(mf.backup_root(home), tgt, ts)
+        print(f"    备份 -> {bak}")
     if st == "replace_block" and reason.startswith("已最新"):
         _, src_block = load_block(repo, mf.rules_src)
         rebuild_rules(tgt, src_block, detect_eol(read_utf8(tgt)))
         print("  规则文件: 已最新，仅剥离 BOM")
         return
-    if bak:
-        make_backup(mf.backup_root(home), tgt, ts)
-        print(f"    备份 -> {bak}")
     src_text, src_block = load_block(repo, mf.rules_src)
     if st in ("new", "replace_file"):
         atomic_write(tgt, src_text.replace("\r\n", "\n"))
@@ -397,7 +397,7 @@ def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run):
         print(f"  现有其他 Skill（仅提醒，不删除）: {', '.join(pairs)}")
 
 
-def apply_prompts(mf, key, home, repo, dry_run):
+def apply_prompts(mf, key, home, repo, ts, dry_run):
     pd = mf.prompts_dir(key, home)
     if not pd or key != "codex":
         return
@@ -410,12 +410,12 @@ def apply_prompts(mf, key, home, repo, dry_run):
             old_text = read_utf8(tgt)
             if norm_text(old_text) == new_text:
                 continue
-            eol = detect_eol(old_text)
+            eol, bak = detect_eol(old_text), make_backup(mf.backup_root(home), tgt, ts, dry_run=dry_run)
         else:
-            eol = "\n"
+            eol, bak = "\n", None
         if not dry_run:
             atomic_write(tgt, new_text.replace("\n", eol))
-        print(f"  Prompt {f.name}: {'覆盖' if existed else '新建'} -> {pd}")
+        print(f"  Prompt {f.name}: {'覆盖' if existed else '新建'} -> {pd}" + (f"（备份 -> {bak}）" if bak else ""))
 
 
 def cmd_setup(args):
@@ -433,7 +433,7 @@ def cmd_setup(args):
         print(f"[{key}]")
         apply_rules(mf, key, home, rules_mode, REPO, ts, args.dry_run)
         apply_skills(mf, key, home, skill_mode, REPO, ts, args.dry_run)
-        apply_prompts(mf, key, home, REPO, args.dry_run)
+        apply_prompts(mf, key, home, REPO, ts, args.dry_run)
     if not args.dry_run:
         print(f"\n下一步: python scripts/agent_sync.py doctor --target {args.target}")
     else:

@@ -160,6 +160,19 @@ def test_prompts_copied_for_codex(tmp_path):
     assert norm(read(p)) == norm((REPO / "prompts" / "sync.md").read_bytes())
 
 
+def test_prompts_overwrite_backup(tmp_path):
+    home = make_home(tmp_path)
+    rc, _ = run_engine("setup", "--target", "codex", "--home", str(home))
+    assert rc == 0
+    p = home / ".codex" / "prompts" / "sync.md"
+    write(p, "旧版提示词\n")
+    rc, out = run_engine("setup", "--target", "codex", "--home", str(home))
+    assert rc == 0, out
+    bak = home / ".zhuoh-agent-backup" / TS / f"sync_{TS}.md.bak"
+    assert bak.exists()
+    assert norm(read(bak)) == "旧版提示词\n"
+
+
 # --- auto 探测 ---
 
 def test_auto_env_claude(tmp_path):
@@ -314,6 +327,32 @@ def test_backup_collision_suffix(tmp_path):
     assert b1.exists() and b2.exists()
     assert "版本1" in norm(read(b1))
     assert "版本2" in norm(read(b2))
+
+
+def test_append_backs_up(tmp_path):
+    """README 契约：无受管标记的 append 写入前也先备份（不限于带警告的场景）。"""
+    home = make_home(tmp_path)
+    write(rules_path(home), "自定义指令\n")
+    rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
+    assert rc == 0, out
+    bak = home / ".zhuoh-agent-backup" / TS / f"CLAUDE_{TS}.md.bak"
+    assert bak.exists()
+    assert norm(read(bak)) == "自定义指令\n"
+
+
+def test_bom_strip_backs_up(tmp_path):
+    """仅剥离 BOM 的写入路径同样先备份。"""
+    home = make_home(tmp_path)
+    rc, _ = run_engine("setup", "--target", "claude", "--home", str(home))
+    assert rc == 0
+    p = rules_path(home)
+    write(p, b"\xef\xbb\xbf" + read(p))
+    rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
+    assert rc == 0, out
+    assert "仅剥离 BOM" in out
+    bak = home / ".zhuoh-agent-backup" / TS / f"CLAUDE_{TS}.md.bak"
+    assert bak.exists()
+    assert read(p)[:3] != b"\xef\xbb\xbf"
 
 
 def test_skill_replace_backup_outside_skill_dir(tmp_path):
