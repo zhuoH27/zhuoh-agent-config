@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "backup_root": "~/.zhuoh-agent-backup",
+  "default_mode": "copy",
+  "hosts": {
+    "claude": {
+      "root": "~/.claude",
+      "rules_target": "CLAUDE.md",
+      "skills_dir": "skills"
+    },
+    "codex": {
+      "root": "~/.codex",
+      "rules_target": "AGENTS.md",
+      "skills_dir": "skills",
+      "prompts_dir": "prompts"
+    },
+    "agents": {
+      "root": "~/.agents",
+      "rules_target": "AGENTS.md",
+      "skills_dir": "skills"
+    }
+  },
+  "sources": {
+    "rules": "AGENTS.md",
+    "skills": "skills",
+    "prompts": "prompts"
+  },
+  "known_overlaps": {
+    "coding-standards": "zhuoh-code-standards",
+    "academic-pptx": "zhuoh-ppt-maker",
+    "nature-paper2ppt": "zhuoh-ppt-maker",
+    "scientific-figure-making": "zhuoh-ppt-maker",
+    "anti-defensive-writing": "zhuoh-paper-writing",
+    "code-standards": "zhuoh-code-standards",
+    "ppt-maker": "zhuoh-ppt-maker",
+    "paper-writing": "zhuoh-paper-writing",
+    "idea-evaluation": "zhuoh-idea-evaluation",
+    "paper-review": "zhuoh-paper-review"
+  }
+}

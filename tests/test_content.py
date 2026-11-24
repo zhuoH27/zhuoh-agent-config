@@ -52,26 +52,37 @@ def test_installers_share_version():
 
 
 def test_line_count_within_limit():
-    for name in ("install.sh", "install.ps1"):
-        text = (REPO / name).read_bytes().decode("utf-8-sig")
+    for name in ("scripts/agent_sync.py", "tests/test_sync_engine.py",
+                 "tests/test_content.py", "install.sh", "install.ps1"):
+        path = REPO / name
+        if not path.exists():
+            continue
+        text = path.read_bytes().decode("utf-8-sig")
         lines = text.count("\n") + (0 if text.endswith("\n") else 1)
         assert lines <= 600, f"{name} 超过 600 行上限: {lines}"
 
 
+def test_skill_main_size_within_limit():
+    """动态遍历：主 SKILL.md 不超过 10KB 警戒阈值（细则应在 references/）。"""
+    for d in (REPO / "skills").iterdir():
+        if not d.is_dir():
+            continue
+        skill = d / "SKILL.md"
+        size = skill.stat().st_size
+        assert size <= 10 * 1024, f"skills/{d.name}/SKILL.md 超过 10KB（{size}B），请拆层到 references/"
+
+
 def test_skill_names_prefixed():
-    """Skill 目录名与 frontmatter name 必须带 zhuoh- 前缀且一致。"""
+    """动态遍历：Skill 目录名与 frontmatter name 必须带 zhuoh- 前缀且一致。"""
     dirs = sorted(p.name for p in (REPO / "skills").iterdir() if p.is_dir())
-    assert dirs == [
-        "zhuoh-code-standards",
-        "zhuoh-idea-evaluation",
-        "zhuoh-paper-review",
-        "zhuoh-paper-writing",
-        "zhuoh-ppt-maker",
-    ]
+    assert dirs, "skills/ 下至少应有一个技能"
+    assert all(d.startswith("zhuoh-") for d in dirs), f"技能目录名必须带 zhuoh- 前缀: {dirs}"
     for d in (REPO / "skills").iterdir():
         text = (d / "SKILL.md").read_text(encoding="utf-8")
         m = re.search(r"(?m)^name:\s*(\S+)", text)
         assert m and m.group(1) == d.name, f"{d.name} 的 frontmatter name 不一致"
+        m2 = re.search(r"(?m)^description:\s*(\S+)", text)
+        assert m2 and m2.group(1), f"{d.name} 的 frontmatter 缺 description"
 
 
 def test_readme_has_no_hardcoded_version():
