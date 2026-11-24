@@ -1,9 +1,9 @@
 # zhuoh-agent-config
-把一套全局规则和 4 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
+把一套全局规则和 5 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
 
 - 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`），也支持 `~/.agents` 约定。
 - **零运行时依赖**：macOS/Linux 用系统自带的 `sh`，Windows 用系统自带的 Windows PowerShell 5.1+，无需安装 Python 或任何其他程序。
-- 安装产物只有 Markdown：规则文件 + 4 个 `SKILL.md`。安装器（`install.sh` / `install.ps1`）只在本仓库里运行，不会落进配置目录。
+- 安装产物只有 Markdown：规则文件 + 5 个 `SKILL.md`。安装器（`install.sh` / `install.ps1`）只在本仓库里运行，不会落进配置目录。
 - 自带备份、受管区块、dry-run 与校验；不删除旧 Skill，不自动改 `.gitignore`。
 
 ## 给 AI 的一键指令
@@ -47,7 +47,8 @@ zhuoh-agent-config/
 │   ├── zhuoh-code-standards/SKILL.md
 │   ├── zhuoh-ppt-maker/SKILL.md
 │   ├── zhuoh-paper-writing/SKILL.md
-│   └── zhuoh-idea-evaluation/SKILL.md
+│   ├── zhuoh-idea-evaluation/SKILL.md
+│   └── zhuoh-paper-review/SKILL.md
 └── prompts/
     └── sync.md                   # 已装宿主的后续同步指令
 ```
@@ -93,7 +94,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --verify --t
 - 私有仓库需要登录或 token，无法只靠 URL 一键；建议公开。
 
 ## 作者偏好声明
-`zhuoh-ppt-maker` 的默认交付形态（未明说 .pptx 时默认离线网页并提示可复刻）、文献汇报署名占位（「用户」「导师」）、字体搭配（微软雅黑 + Times New Roman）、正文黑白配色，以及 `zhuoh-paper-writing` 默认参考文献版本策略，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md`；这些选择不构成对其他方案的否定。
+`zhuoh-ppt-maker` 的默认交付形态（未明说 .pptx 时默认离线网页并提示可复刻）、文献汇报署名占位（「用户」「导师」）、字体搭配（微软雅黑 + Times New Roman）、正文黑白配色，以及 `zhuoh-paper-writing` 默认参考文献版本策略、`zhuoh-paper-review` 的 IMRaD 默认范式、优先级权重与 ✅/⚠️/❌ 输出格式，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md`；这些选择不构成对其他方案的否定。
 
 ## 开发与测试
 ```bash

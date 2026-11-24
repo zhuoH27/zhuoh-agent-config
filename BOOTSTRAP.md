@@ -63,7 +63,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --apply --ta
 
 ## 6. 汇报与收尾
 汇报：宿主、写入路径、备份路径、校验结果、安装的 commit hash、未验证项。
-提醒用户：新开一个宿主会话，让它列出可用 Skill，确认 4 个都在。同一个会话里新写的 Skill 不保证被重新扫描。
+提醒用户：新开一个宿主会话，让它列出可用 Skill，确认 5 个都在。同一个会话里新写的 Skill 不保证被重新扫描。
 
 ## 边界
 - 不删除旧 Skill；发现功能重叠只记录并提醒。

@@ -5,10 +5,10 @@
 # 用法：powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 [--dry-run|--apply|--verify]
 #       [--target auto|claude|codex|agents|both] [--mode append|replace|abort] [--home 目录]
 
-$VERSION = '2.1.1'
+$VERSION = '2.2.0'
 $BEGIN_MARK = '<!-- BEGIN: global-iron-rules -->'
 $END_MARK = '<!-- END: global-iron-rules -->'
-$SKILL_NAMES = @('zhuoh-code-standards', 'zhuoh-ppt-maker', 'zhuoh-paper-writing', 'zhuoh-idea-evaluation')
+$SKILL_NAMES = @('zhuoh-code-standards', 'zhuoh-ppt-maker', 'zhuoh-paper-writing', 'zhuoh-idea-evaluation', 'zhuoh-paper-review')
 $TS_HINT = 'YYYYMMDD_HHMMSS'
 $KNOWN_OVERLAPS = @{
     'coding-standards' = 'zhuoh-code-standards'
@@ -20,6 +20,7 @@ $KNOWN_OVERLAPS = @{
     'ppt-maker' = 'zhuoh-ppt-maker'
     'paper-writing' = 'zhuoh-paper-writing'
     'idea-evaluation' = 'zhuoh-idea-evaluation'
+    'paper-review' = 'zhuoh-paper-review'
 }
 $REPO = $PSScriptRoot
 $ErrorActionPreference = 'Stop'

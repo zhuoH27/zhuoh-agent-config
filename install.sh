@@ -5,10 +5,10 @@
 # 写入前先备份；写入走同目录临时文件+原子改名。AGENT_CONFIG_TS 仅供测试固定时间戳。
 # 用法：sh install.sh [--dry-run|--apply|--verify] [--target auto|claude|codex|agents|both] [--mode append|replace|abort] [--home 目录]
 
-VERSION='2.1.1'
+VERSION='2.2.0'
 BEGIN_MARK='<!-- BEGIN: global-iron-rules -->'
 END_MARK='<!-- END: global-iron-rules -->'
-SKILL_NAMES='zhuoh-code-standards zhuoh-ppt-maker zhuoh-paper-writing zhuoh-idea-evaluation'
+SKILL_NAMES='zhuoh-code-standards zhuoh-ppt-maker zhuoh-paper-writing zhuoh-idea-evaluation zhuoh-paper-review'
 TS_HINT='YYYYMMDD_HHMMSS'
 REPO=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd) || { printf '%s\n' '无法定位脚本所在目录' >&2; exit 1; }
 WORK=$(mktemp -d) || { printf '%s\n' '无法创建临时目录' >&2; exit 1; }
@@ -237,7 +237,7 @@ overlap_for() {
         coding-standards) printf 'zhuoh-code-standards\n' ;;
         academic-pptx|nature-paper2ppt|scientific-figure-making) printf 'zhuoh-ppt-maker\n' ;;
         anti-defensive-writing) printf 'zhuoh-paper-writing\n' ;;
-        code-standards|ppt-maker|paper-writing|idea-evaluation) printf 'zhuoh-%s\n' "$1" ;;
+        code-standards|ppt-maker|paper-writing|idea-evaluation|paper-review) printf 'zhuoh-%s\n' "$1" ;;
         *) return 1 ;;
     esac
 }
@@ -480,7 +480,7 @@ fail_report() { # $1=错误信息
 }
 
 main() {
-    target=auto
+    target_arg=auto
     mode=append
     home_arg=''
     action=''
@@ -489,7 +489,7 @@ main() {
             --version) printf 'agent-config %s (sh)\n' "$VERSION"; exit 0 ;;
             --target)
                 [ $# -ge 2 ] || die '缺少 --target 的值'
-                target=$2; shift 2 ;;
+                target_arg=$2; shift 2 ;;
             --mode)
                 [ $# -ge 2 ] || die '缺少 --mode 的值'
                 mode=$2; shift 2 ;;
@@ -502,9 +502,9 @@ main() {
             *) die "未知参数: $1" ;;
         esac
     done
-    case $target in
+    case $target_arg in
         auto|claude|codex|agents|both) ;;
-        *) die "未知 --target: $target" ;;
+        *) die "未知 --target: $target_arg" ;;
     esac
     case $mode in
         append|replace|abort) ;;
@@ -522,7 +522,7 @@ main() {
     fi
     [ -n "$HOME_BASE" ] || die 'HOME 未设置，无法定位宿主目录；请设置 HOME 或用 --home 指定'
     load_source_rules
-    resolve_targets "$target"
+    resolve_targets "$target_arg"
     # 第一遍：全部规划；任何规划错误在此停止（未输出、未写入）
     for k in $HOST_KEYS; do
         set_host "$k"
@@ -575,7 +575,7 @@ main() {
     [ -s "$W_WRITTEN" ] && { printf '写入:\n'; cat "$W_WRITTEN"; }
     [ -s "$W_BACKUPS" ] && { printf '备份:\n'; cat "$W_BACKUPS"; }
     [ -s "$W_SKIPPED" ] && { printf '跳过:\n'; cat "$W_SKIPPED"; }
-    printf '\n下一步: sh install.sh --verify --target %s\n' "$target"
+    printf '\n下一步: sh install.sh --verify --target %s\n' "$target_arg"
     return 0
 }
 

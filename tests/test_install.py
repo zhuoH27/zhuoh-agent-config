@@ -116,7 +116,7 @@ def test_sh_syntax(installer):
 def test_version(installer):
     rc, out = run_installer(installer, "--version")
     assert rc == 0
-    assert "agent-config 2.1.1" in out
+    assert "agent-config 2.2.0" in out
 
 
 def test_fresh_apply_and_verify(installer, tmp_path):
@@ -125,11 +125,12 @@ def test_fresh_apply_and_verify(installer, tmp_path):
     assert rc == 0, out
     assert "新建" in out
     assert "写入" in out
+    assert "--verify --target claude" in out  # 回归：下一步提示的 --target 不得被工作变量覆盖
     p = rules_path(home)
     assert p.exists()
     assert read(p)[:3] != b"\xef\xbb\xbf"  # 无 BOM
     assert norm(read(p)) == expected_rules()
-    for name in ("zhuoh-code-standards", "zhuoh-ppt-maker", "zhuoh-paper-writing", "zhuoh-idea-evaluation"):
+    for name in ("zhuoh-code-standards", "zhuoh-ppt-maker", "zhuoh-paper-writing", "zhuoh-idea-evaluation", "zhuoh-paper-review"):
         sp = home / ".claude" / "skills" / name / "SKILL.md"
         assert sp.exists()
         assert norm(read(sp)) == skill_text(name)
@@ -497,6 +498,8 @@ def test_missing_option_value(installer, tmp_path):
 def test_empty_home_rejected(installer, tmp_path):
     if installer == "sh" and sys.platform == "win32":
         pytest.skip("msys 运行时会重建空 HOME，sh 的空值防护仅在真实 POSIX 环境可触发")
+    if installer == "ps1":
+        pytest.skip("Windows PowerShell 5.1 在 USERPROFILE 为空时启动即崩溃；同一防护由 pwsh 驱动覆盖")
     rc, out = run_installer(installer, "--dry-run", "--target", "claude",
                             env_extra={"HOME": "", "USERPROFILE": ""})
     assert rc != 0

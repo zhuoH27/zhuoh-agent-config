@@ -64,6 +64,7 @@ def test_skill_names_prefixed():
     assert dirs == [
         "zhuoh-code-standards",
         "zhuoh-idea-evaluation",
+        "zhuoh-paper-review",
         "zhuoh-paper-writing",
         "zhuoh-ppt-maker",
     ]
