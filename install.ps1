@@ -5,7 +5,7 @@
 # 用法：powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 [--dry-run|--apply|--verify]
 #       [--target auto|claude|codex|agents|both] [--mode append|replace|abort] [--home 目录]
 
-$VERSION = '2.1.0'
+$VERSION = '2.1.1'
 $BEGIN_MARK = '<!-- BEGIN: global-iron-rules -->'
 $END_MARK = '<!-- END: global-iron-rules -->'
 $SKILL_NAMES = @('zhuoh-code-standards', 'zhuoh-ppt-maker', 'zhuoh-paper-writing', 'zhuoh-idea-evaluation')
@@ -51,7 +51,7 @@ function Read-TextStrict([string]$path) {
 }
 
 function Get-Newline([string]$text) {
-    if ($text -and $text.Contains("`r`n")) { return "`r`n" }
+    if ($text -and $text.Contains("`r")) { return "`r`n" }
     return "`n"
 }
 
@@ -72,6 +72,13 @@ function Get-Block([string]$text) {
     return $text.Substring($i, $j + $END_MARK.Length - $i).Trim([char[]](@([char]13, [char]10)))
 }
 
+function Test-MarkerLayout([string]$text) {
+    $lines = (Normalize $text) -split "`n"
+    $bl = @($lines | Where-Object { $_ -eq $BEGIN_MARK }).Count
+    $el = @($lines | Where-Object { $_ -eq $END_MARK }).Count
+    return ($bl -eq 1 -and $el -eq 1)
+}
+
 function Get-SourceBlock {
     if ($script:SourceBlock) { return $script:SourceBlock }
     $p = Join-Path $REPO 'AGENTS.md'
@@ -79,7 +86,7 @@ function Get-SourceBlock {
     $text = Read-TextStrict $p
     $bc = [regex]::Matches($text, [regex]::Escape($BEGIN_MARK)).Count
     $ec = [regex]::Matches($text, [regex]::Escape($END_MARK)).Count
-    if ($bc -ne 1 -or $ec -ne 1) { Die '源 AGENTS.md 的受管标记不成对' }
+    if ($bc -ne 1 -or $ec -ne 1 -or -not (Test-MarkerLayout $text)) { Die '源 AGENTS.md 的受管标记不成对或未独占一行' }
     $i = $text.IndexOf($BEGIN_MARK)
     $j = $text.IndexOf($END_MARK)
     if ($j -lt $i) { Die '源 AGENTS.md 的 END 在 BEGIN 之前' }
@@ -143,21 +150,13 @@ function Backup-File([string]$desired, [string]$src) {
 }
 
 function Write-AtomicText([string]$path, [string]$text) {
-    $dir = Split-Path -Parent $path
-    if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-    $tmp = Join-Path $dir ('.' + (Split-Path -Leaf $path) + '.tmp')
-    [IO.File]::WriteAllText($tmp, $text, [Text.UTF8Encoding]::new($false))
-    if (Test-Path -LiteralPath $path) {
-        try { [IO.File]::Replace($tmp, $path, $null) } catch { Move-Item -LiteralPath $tmp -Destination $path -Force }
-    } else {
-        Move-Item -LiteralPath $tmp -Destination $path -Force
-    }
+    Write-AtomicBytes $path ([Text.UTF8Encoding]::new($false).GetBytes($text))
 }
 
 function Write-AtomicBytes([string]$path, [byte[]]$bytes) {
     $dir = Split-Path -Parent $path
     if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-    $tmp = Join-Path $dir ('.' + (Split-Path -Leaf $path) + '.tmp')
+    $tmp = Join-Path $dir ('.' + (Split-Path -Leaf $path) + '.tmp.' + $PID)
     [IO.File]::WriteAllBytes($tmp, $bytes)
     if (Test-Path -LiteralPath $path) {
         try { [IO.File]::Replace($tmp, $path, $null) } catch { Move-Item -LiteralPath $tmp -Destination $path -Force }
@@ -181,7 +180,7 @@ function Plan-Rules($ctx, [string]$mode) {
     $ec = [regex]::Matches($text, [regex]::Escape($END_MARK)).Count
     $i = $text.IndexOf($BEGIN_MARK)
     $j = $text.IndexOf($END_MARK)
-    if ($bc -eq 1 -and $ec -eq 1 -and $j -ge $i) {
+    if ($bc -eq 1 -and $ec -eq 1 -and $j -ge $i -and (Test-MarkerLayout $text)) {
         $block = Get-Block $text
         $src = Get-SourceBlock
         if ((Normalize $block) -eq (Normalize $src)) {
@@ -193,7 +192,7 @@ function Plan-Rules($ctx, [string]$mode) {
         return @{ Action = 'replace_block'; Reason = '将替换受管区块'; Backup = (Join-Path (Join-Path $ctx.Root '_backup') (Get-BackupName (Split-Path -Leaf $target) $TS_HINT)); Target = $target }
     }
     if ($bc -gt 0 -or $ec -gt 0) {
-        Die ("标记异常: {0} (BEGIN={1}, END={2})；请先手动修复，脚本不自动修" -f $target, $bc, $ec)
+        Die ("标记异常: {0} (BEGIN={1}, END={2})；标记须各出现一次且独占一行，请先手动修复，脚本不自动修" -f $target, $bc, $ec)
     }
     if ($size -eq 0) {
         return @{ Action = 'create'; Reason = '规则文件为空，将写入'; Backup = ''; Target = $target }
@@ -362,13 +361,12 @@ function Verify-Host($ctx) {
         return $false
     }
     $text = Read-TextStrict $ctx.Rules
-    $raw = [IO.File]::ReadAllBytes($ctx.Rules)
     $bc = [regex]::Matches($text, [regex]::Escape($BEGIN_MARK)).Count
     $ec = [regex]::Matches($text, [regex]::Escape($END_MARK)).Count
     $i = $text.IndexOf($BEGIN_MARK)
     $j = $text.IndexOf($END_MARK)
     $block = ''
-    if ($bc -ne 1 -or $ec -ne 1 -or $j -lt $i) {
+    if ($bc -ne 1 -or $ec -ne 1 -or $j -lt $i -or -not (Test-MarkerLayout $text)) {
         Out-Line ("  FAIL: 标记异常 BEGIN={0} END={1}" -f $bc, $ec)
         $ok = $false
     } else {
@@ -397,12 +395,7 @@ function Verify-Host($ctx) {
             Out-Line '  铁律条数: OK (1-10)'
         }
     }
-    if ($raw.Length -ge 3 -and $raw[0] -eq 0xEF -and $raw[1] -eq 0xBB -and $raw[2] -eq 0xBF) {
-        Out-Line '  BOM: FAIL (存在 BOM)'
-        $ok = $false
-    } else {
-        Out-Line '  BOM: OK (无)'
-    }
+    if (Test-Bom $ctx.Rules) { Out-Line '  BOM: FAIL (存在 BOM)'; $ok = $false } else { Out-Line '  BOM: OK (无)' }
     $nl = Get-Newline $text
     if ($nl -eq "`r`n") { Out-Line '  换行: CRLF（沿用原文件）' } else { Out-Line '  换行: LF' }
     foreach ($name in $SKILL_NAMES) {
@@ -413,7 +406,6 @@ function Verify-Host($ctx) {
             $ok = $false
             continue
         }
-        $skillRaw = [IO.File]::ReadAllBytes($target)
         $skillText = Read-TextStrict $target
         $m = 'FAIL'
         if ((Normalize $skillText) -eq (Get-SkillSource $name)) { $m = 'OK' } else { $ok = $false }
@@ -427,12 +419,12 @@ function Verify-Host($ctx) {
             $fmEnd = $nText.IndexOf("`n---", 3)
             $front = ''
             if ($fmEnd -ge 0) { $front = $nText.Substring(0, $fmEnd) }
-            $mName = [regex]::Match($front, '(?m)^name:\s*(\S+)\s*$')
+            $mName = [regex]::Match($front, '(?m)^name:[ \t]*(\S+)[ \t]*$')
             if (-not $mName.Success -or $mName.Groups[1].Value.Trim([char[]]@(39, 34)) -ne $name) {
                 Out-Line '  FAIL: frontmatter 的 name 缺失或与目录名不一致'
                 $ok = $false
             }
-            $mDesc = [regex]::Match($front, '(?m)^description:\s*(.+)$')
+            $mDesc = [regex]::Match($front, '(?m)^description:[ \t]*(.+)$')
             $dv = ''
             if ($mDesc.Success) { $dv = $mDesc.Groups[1].Value.Trim().Trim([char[]]@(39, 34)) }
             if ($dv -eq '' -or $dv -eq '>' -or $dv -eq '|' -or $dv -eq '>-' -or $dv -eq '|-') {
@@ -440,14 +432,8 @@ function Verify-Host($ctx) {
                 $ok = $false
             }
         }
-        if ($skillRaw.Length -ge 3 -and $skillRaw[0] -eq 0xEF -and $skillRaw[1] -eq 0xBB -and $skillRaw[2] -eq 0xBF) {
-            Out-Line '  FAIL: 存在 BOM'
-            $ok = $false
-        }
-        if (([Text.Encoding]::UTF8.GetString($skillRaw)).Contains("`r`n")) {
-            Out-Line '  FAIL: 存在 CRLF'
-            $ok = $false
-        }
+        if (Test-Bom $target) { Out-Line '  FAIL: 存在 BOM'; $ok = $false }
+        if ($skillText.Contains("`r")) { Out-Line '  FAIL: 存在 CRLF'; $ok = $false }
     }
     return $ok
 }
@@ -504,6 +490,7 @@ function Main {
     $i = 0
     while ($i -lt $script:RawArgs.Count) {
         $a = [string]$script:RawArgs[$i]
+        if ($a -in '--target', '--mode', '--home' -and ($i + 1) -ge $script:RawArgs.Count) { Die ("缺少 {0} 的值" -f $a) }
         switch -Exact ($a) {
             '--version' { Out-Line ("agent-config {0} (install.ps1)" -f $VERSION); exit 0 }
             '--target' { $i++; $target = [string]$script:RawArgs[$i] }
@@ -529,6 +516,7 @@ function Main {
         else { $homeBase = $homeArg }
     }
 
+    if (-not $homeBase) { Die 'HOME/USERPROFILE 未设置，无法定位宿主目录；请用 --home 指定' }
     $hosts = @(Resolve-Targets $target $homeBase)
 
     # 第一遍：全部规划；任何规划错误在此停止（未输出、未写入）

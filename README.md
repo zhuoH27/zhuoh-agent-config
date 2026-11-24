@@ -69,13 +69,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --verify --t
 
 安装器会被执行。运行前请（或要求执行 agent 先）审阅：两个脚本都无网络访问、无 `eval`/子进程（ps1）/不执行任意代码（sh 侧仅调用列在脚本头部的常规文本工具），只读写宿主规则文件、`skills/*/SKILL.md` 与 `_backup/`；写入走临时文件+原子改名。需要可复现时，用 tag 或 commit 的 URL 固定版本。
 
-**符号链接限制**：规则文件或 Skill 文件本身是符号链接时，安装器拒绝写入并停止；宿主根目录为符号链接时会按其指向的路径操作。dotfiles/stow 用户请先确认链接结构。
+**符号链接限制**：规则文件或 Skill 文件本身是符号链接时，安装器拒绝写入并停止；宿主根目录为符号链接时会按其指向的路径操作。dotfiles/stow 用户请先确认链接结构。Windows 的 `install.ps1` 会拒绝一切链接类型（含硬链接、junction），`install.sh` 仅检测符号链接；两端对普通文件的行为一致。
 
 ## 规则文件已有内容怎么办
 - **没有受管标记**：默认 `--mode append`，把铁律区块追加到文件末尾，保留原有内容（含末尾空行），并先备份。只有明确需要整文件替换时才用 `--mode replace`；`--mode abort` 会直接停止。
 - **疑似旧版铁律**：dry-run 会输出 `[警告]`——文件里像是有未受管标记的旧版铁律，直接追加会重复或冲突，请人工合并，或经用户确认后改用 `--mode replace`。
 - **已有一对标记**：只替换 `BEGIN` 到 `END` 之间的区块，不碰其余内容；dry-run 会附上区块差异摘要。
-- **标记异常**（只有一半、多对、顺序颠倒）：停止，不自动修，先人工确认。
+- **标记异常**（只有一半、多对、顺序颠倒、标记不独占一行）：停止，不自动修，先人工确认。受管标记必须各出现恰好一次且独占一行（该行除标记外不得有任何其他字符，含空格）；两个安装器执行同一契约。
 - **编码与格式**：非 UTF-8 的规则文件（如 GBK/UTF-16）会以可读错误停止，请先转成 UTF-8。已有文件的换行风格（LF/CRLF）沿用原文件；写入一律 UTF-8 无 BOM，文件带 BOM 时任何写入都会顺带剥离（先备份）；区块已最新但文件带 BOM 时，apply 会原样重写一次仅剥 BOM。
 
 ## 更新
@@ -100,7 +100,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --verify --t
 python -m pip install pytest
 python -m pytest tests/ -q
 ```
-Python 只在开发与 CI 侧使用（驱动黑盒测试），用户安装机器零依赖。测试全部通过 `--home` 指向临时目录运行（含带空格的路径），不会触碰真实配置。CI（`.github/workflows/ci.yml`）在 Ubuntu（驱动 `install.sh`）与 Windows（驱动 `install.ps1`，兼测 Git Bash 的 `install.sh`）上自动跑同一套测试。
+Python 只在开发与 CI 侧使用（驱动黑盒测试），用户安装机器零依赖。测试全部通过 `--home` 指向临时目录运行（含带空格的路径），不会触碰真实配置。CI（`.github/workflows/ci.yml`）在 Ubuntu（驱动 `install.sh` 与 pwsh 7）与 Windows（驱动 Windows PowerShell 5.1 的 `install.ps1`、pwsh 7，兼测 Git Bash 的 `install.sh`）上自动跑同一套测试；本机装有 pwsh 时，本地测试也会自动纳入该驱动。
 另注意：在本仓库内开发时，Codex 会把仓库根的 `AGENTS.md` 当作项目指令，与全局安装版同时生效（推理，未实测）。
 
 ## 版本

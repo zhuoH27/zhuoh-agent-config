@@ -36,7 +36,8 @@ def _find_sh():
 
 SH = _find_sh()
 PS1 = shutil.which("powershell.exe") if sys.platform == "win32" else None
-INSTALLERS = [i for i, avail in (("sh", SH), ("ps1", PS1)) if avail]
+PWSH = shutil.which("pwsh")
+INSTALLERS = [i for i, avail in (("sh", SH), ("ps1", PS1), ("pwsh", PWSH)) if avail]
 
 pytestmark = pytest.mark.parametrize("installer", INSTALLERS, ids=lambda x: str(x))
 
@@ -52,6 +53,8 @@ def run_installer(installer, *args, home=None, env_extra=None, ts=TS):
         env.update(env_extra)
     if installer == "sh":
         cmd = [SH, str(REPO / "install.sh"), *args]
+    elif installer == "pwsh":
+        cmd = [PWSH, "-NoProfile", "-File", str(REPO / "install.ps1"), *args]
     else:
         cmd = [PS1, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(REPO / "install.ps1"), *args]
     r = subprocess.run(cmd, capture_output=True, env=env, timeout=180)
@@ -113,7 +116,7 @@ def test_sh_syntax(installer):
 def test_version(installer):
     rc, out = run_installer(installer, "--version")
     assert rc == 0
-    assert "agent-config 2.1.0" in out
+    assert "agent-config 2.1.1" in out
 
 
 def test_fresh_apply_and_verify(installer, tmp_path):
@@ -449,3 +452,52 @@ def test_verify_detects_tamper(installer, tmp_path):
     assert rc != 0
     assert "存在失败项" in out
     assert "FAIL" in out
+
+
+def test_marker_inline_rejected(installer, tmp_path):
+    """回归：标记不独占一行（行内有其他文字）须按标记异常停止，且不改动文件。"""
+    home = make_home(tmp_path)
+    old = "前缀文字 " + BEGIN + "\n旧内容\n" + END + " 后缀文字\n"
+    write(rules_path(home), old)
+    rc, out = run_installer(installer, "--apply", "--target", "claude", "--home", str(home))
+    assert rc != 0
+    assert "标记异常" in out
+    assert norm(read(rules_path(home))) == old
+
+
+def test_marker_double_on_line_rejected(installer, tmp_path):
+    """回归：同一行出现两个 BEGIN 须按标记异常停止（sh 曾按行计数漏判）。"""
+    home = make_home(tmp_path)
+    old = BEGIN + BEGIN + "\n旧内容\n" + END + "\n"
+    write(rules_path(home), old)
+    rc, out = run_installer(installer, "--apply", "--target", "claude", "--home", str(home))
+    assert rc != 0
+    assert "标记异常" in out
+    assert norm(read(rules_path(home))) == old
+
+
+def test_marker_trailing_space_rejected(installer, tmp_path):
+    """回归：标记行尾随空格不属于独占一行，须停止而非静默重写。"""
+    home = make_home(tmp_path)
+    old = BEGIN + "\n旧内容\n" + END + " \n"
+    write(rules_path(home), old)
+    rc, out = run_installer(installer, "--apply", "--target", "claude", "--home", str(home))
+    assert rc != 0
+    assert "标记异常" in out
+    assert norm(read(rules_path(home))) == old
+
+
+def test_missing_option_value(installer, tmp_path):
+    home = make_home(tmp_path)
+    rc, out = run_installer(installer, "--apply", "--home", str(home), "--target")
+    assert rc != 0
+    assert "缺少" in out
+
+
+def test_empty_home_rejected(installer, tmp_path):
+    if installer == "sh" and sys.platform == "win32":
+        pytest.skip("msys 运行时会重建空 HOME，sh 的空值防护仅在真实 POSIX 环境可触发")
+    rc, out = run_installer(installer, "--dry-run", "--target", "claude",
+                            env_extra={"HOME": "", "USERPROFILE": ""})
+    assert rc != 0
+    assert "未设置" in out

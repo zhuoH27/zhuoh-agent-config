@@ -75,14 +75,14 @@ def test_skill_names_prefixed():
 
 def test_readme_has_no_hardcoded_version():
     text = (REPO / "README.md").read_text(encoding="utf-8")
-    assert "1.1.0" not in text and "1.1.1" not in text, "README 不应写死版本号"
-    assert "git tag v1.1.1" not in text, "发布示例不应残留旧版本号"
+    assert not re.search(r"(?<!\d)\d+\.\d+\.\d+(?!\d)", text), "README 不应写死任何三段式版本号"
 
 
 def test_gbt_2025_default():
     pw = (REPO / "skills" / "zhuoh-paper-writing" / "SKILL.md").read_text(encoding="utf-8")
     assert "GB/T 7714—2025" in pw
     assert "据称已发布" not in pw, "2025 版发布状态已核实，不应再写据称/未经核实"
+    assert "[DS/OL]" in pw and "[PP/OL]" in pw, "2025 版新增类型应已落地"
 
 
 def test_docs_use_new_entrypoints():

@@ -1,11 +1,11 @@
 #!/bin/sh
 # agent-config 安装器（POSIX sh 版，供 macOS/Linux 及含 sh 的环境使用）。
-# 依赖：POSIX sh 与常规系统工具（awk/sed/grep/tr/cmp/diff/dd/tail/head/wc/cat/cp/mv/mkdir/date/mktemp/iconv）。
+# 依赖：POSIX sh 与常规系统工具（awk/sed/grep/tr/cmp/diff/dd/tail/head/wc/cat/cp/mv/mkdir/date/mktemp/iconv/rm/dirname/basename）。
 # 安全边界：无网络访问；不执行任意代码；只读写宿主规则文件、skills/*/SKILL.md 与 _backup/；
 # 写入前先备份；写入走同目录临时文件+原子改名。AGENT_CONFIG_TS 仅供测试固定时间戳。
 # 用法：sh install.sh [--dry-run|--apply|--verify] [--target auto|claude|codex|agents|both] [--mode append|replace|abort] [--home 目录]
 
-VERSION='2.1.0'
+VERSION='2.1.1'
 BEGIN_MARK='<!-- BEGIN: global-iron-rules -->'
 END_MARK='<!-- END: global-iron-rules -->'
 SKILL_NAMES='zhuoh-code-standards zhuoh-ppt-maker zhuoh-paper-writing zhuoh-idea-evaluation'
@@ -54,7 +54,10 @@ extract_block() { # BEGIN 行到 END 行，逐行原样输出
     ' "$1"
 }
 
-marker_count() { grep -c -F "$1" "$2" 2>/dev/null; }
+marker_count() { # 按出现次数计数（grep -c 只数行数，同行多个会漏判）
+    awk -v s="$1" '{ line = $0; while ((p = index(line, s)) > 0) { c++; line = substr(line, p + length(s)) } } END { print c + 0 }' "$2"
+}
+marker_line_count() { tr -d '\r' < "$2" | grep -c -x -F "$1"; }
 line_no() { awk -v s="$1" 'index($0, s) { print NR; exit }' "$2"; }
 
 same_normalized() {
@@ -77,7 +80,7 @@ load_source_rules() {
     decode "$REPO/AGENTS.md" "$WORK/source_all"
     bc=$(marker_count "$BEGIN_MARK" "$WORK/source_all")
     ec=$(marker_count "$END_MARK" "$WORK/source_all")
-    [ "$bc" = "1" ] && [ "$ec" = "1" ] || die "源 AGENTS.md 的受管标记不成对"
+    [ "$bc" = "1" ] && [ "$ec" = "1" ] && [ "$(marker_line_count "$BEGIN_MARK" "$WORK/source_all")" = "1" ] && [ "$(marker_line_count "$END_MARK" "$WORK/source_all")" = "1" ] || die "源 AGENTS.md 的受管标记不成对或未独占一行"
     bl=$(line_no "$BEGIN_MARK" "$WORK/source_all")
     el=$(line_no "$END_MARK" "$WORK/source_all")
     [ "$el" -ge "$bl" ] || die "源 AGENTS.md 的 END 在 BEGIN 之前"
@@ -163,7 +166,7 @@ plan_rules() { # $1=mode；设置 RULES_* 全局
     ec=$(marker_count "$END_MARK" "$WORK/old_rules")
     RULES_BL=$(line_no "$BEGIN_MARK" "$WORK/old_rules")
     RULES_EL=$(line_no "$END_MARK" "$WORK/old_rules")
-    if [ "$bc" = "1" ] && [ "$ec" = "1" ] && [ "$RULES_EL" -ge "$RULES_BL" ]; then
+    if [ "$bc" = "1" ] && [ "$ec" = "1" ] && [ "$RULES_EL" -ge "$RULES_BL" ] && [ "$(marker_line_count "$BEGIN_MARK" "$WORK/old_rules")" = "1" ] && [ "$(marker_line_count "$END_MARK" "$WORK/old_rules")" = "1" ]; then
         extract_block "$WORK/old_rules" > "$WORK/old_block"
         if same_normalized "$WORK/old_block" "$WORK/source_block"; then
             if has_bom "$target"; then
@@ -181,7 +184,7 @@ plan_rules() { # $1=mode；设置 RULES_* 全局
         return 0
     fi
     if [ "$bc" != "0" ] || [ "$ec" != "0" ]; then
-        die "标记异常: $target (BEGIN=$bc, END=$ec)；请先手动修复，脚本不自动修"
+        die "标记异常: $target (BEGIN=$bc, END=$ec)；标记须各出现一次且独占一行，请先手动修复，脚本不自动修"
     fi
     if [ "$size" -eq 0 ]; then
         RULES_ACTION=create; RULES_REASON='规则文件为空，将写入'; return 0
@@ -363,7 +366,7 @@ verify_host() {
     bl=$(line_no "$BEGIN_MARK" "$WORK/v_rules")
     el=$(line_no "$END_MARK" "$WORK/v_rules")
     has_block=0
-    if [ "$bc" != "1" ] || [ "$ec" != "1" ] || [ "$el" -lt "$bl" ]; then
+    if [ "$bc" != "1" ] || [ "$ec" != "1" ] || [ "$el" -lt "$bl" ] || [ "$(marker_line_count "$BEGIN_MARK" "$WORK/v_rules")" != "1" ] || [ "$(marker_line_count "$END_MARK" "$WORK/v_rules")" != "1" ]; then
         printf '  FAIL: 标记异常 BEGIN=%s END=%s\n' "$bc" "$ec"
         ok=1
     else
@@ -517,6 +520,7 @@ main() {
     else
         HOME_BASE=$REAL_HOME
     fi
+    [ -n "$HOME_BASE" ] || die 'HOME 未设置，无法定位宿主目录；请设置 HOME 或用 --home 指定'
     load_source_rules
     resolve_targets "$target"
     # 第一遍：全部规划；任何规划错误在此停止（未输出、未写入）
