@@ -2,7 +2,7 @@
 """agent_sync 引擎黑盒测试。
 
 全部通过 monkeypatch/环境变量隔离真实 HOME（绝不触碰真实 ~/.codex 或 ~/.claude）。
-语义断言（标记异常、备份命名、幂等提示等）。
+契约继承自 test_install.py v2.2.0 的语义断言（标记异常、备份命名、幂等提示等）。
 """
 import json
 import os
@@ -85,7 +85,7 @@ def block_variant(extra_line):
 def test_version():
     rc, out = run_engine("--version")
     assert rc == 0
-    assert "agent-config 20261124202824" in out
+    assert "agent-config 3.2.0" in out
 
 
 def test_fresh_apply_claude(tmp_path):
@@ -247,7 +247,7 @@ def test_legacy_hint_blocks_by_default(tmp_path):
     assert "[警告] 疑似已有旧版未受管铁律" in out
     rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
     assert rc == 0, out
-    assert "[警告]" in out  # apply 也仅警告（追加语义）
+    assert "[警告]" in out  # apply 也仅警告（追加语义与原 v2.2.0 一致）
     assert norm(read(rules_path(home))).startswith(old.rstrip("\n"))
 
 
@@ -424,5 +424,5 @@ def test_status_json(tmp_path):
     rc, out = run_engine("status", "--json", "--home", str(home))
     assert rc == 0, out
     data = json.loads(out)
-    assert data["version"] == "20261124202824"
+    assert data["version"] == "3.2.0"
     assert set(data["hosts"]) == {"claude", "codex", "agents"}

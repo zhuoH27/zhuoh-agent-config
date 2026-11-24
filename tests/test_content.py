@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""仓库内容一致性校验（不驱动安装器）。
+"""仓库内容一致性校验（不驱动安装器，无平台分支）。
 
 --verify 只校验铁律编号是 1-10，校验不到 Skill 按编号引用的条文标题；
 这些断言补上这一层，防止条文修改后编号引用悄悄失效。
@@ -106,4 +106,4 @@ def test_docs_use_windows_entrypoint():
 
 
 def test_posix_entrypoint_removed():
-    assert not (REPO / "install.sh").exists(), "POSIX 入口应已移除"
+    assert not (REPO / "install.sh").exists(), "本仓库仅维护 Windows，POSIX 入口应已移除"
