@@ -85,7 +85,7 @@ def block_variant(extra_line):
 def test_version():
     rc, out = run_engine("--version")
     assert rc == 0
-    assert "agent-config 3.2.0" in out
+    assert "agent-config 3.3.0" in out
 
 
 def test_fresh_apply_claude(tmp_path):
@@ -207,7 +207,9 @@ def test_auto_two_hosts_conflict(tmp_path):
     (home / ".codex").mkdir()
     rc, out = run_engine("setup", "--target", "auto", "--home", str(home))
     assert rc != 0
-    assert "同时检测到 ~/.claude 与 ~/.codex" in out
+    assert "检测到多个宿主" in out
+    assert "claude" in out and "codex" in out
+    assert "同时检测到" not in out
 
 
 def test_auto_multi_hosts_message(tmp_path):
@@ -223,7 +225,18 @@ def test_auto_no_hosts_error(tmp_path):
     home = make_home(tmp_path)
     rc, out = run_engine("setup", "--target", "auto", "--home", str(home))
     assert rc != 0
-    assert "未检测到 ~/.claude 或 ~/.codex" in out
+    assert "未检测到 ~/.claude、~/.codex 或 ~/.agents" in out
+
+
+def test_auto_three_hosts_message(tmp_path):
+    home = make_home(tmp_path)
+    (home / ".claude").mkdir()
+    (home / ".codex").mkdir()
+    (home / ".agents").mkdir()
+    rc, out = run_engine("setup", "--target", "auto", "--home", str(home))
+    assert rc != 0
+    assert "检测到多个宿主" in out
+    assert "同时检测到" not in out
 
 
 # --- 规则文件合并语义 ---
@@ -490,5 +503,5 @@ def test_status_json(tmp_path):
     rc, out = run_engine("status", "--json", "--home", str(home))
     assert rc == 0, out
     data = json.loads(out)
-    assert data["version"] == "3.2.0"
+    assert data["version"] == "3.3.0"
     assert set(data["hosts"]) == {"claude", "codex", "agents"}

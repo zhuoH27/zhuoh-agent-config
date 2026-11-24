@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "3.2.0"
+VERSION = "3.3.0"
 REPO = Path(__file__).resolve().parent.parent
 BEGIN_MARK = "<!-- BEGIN: global-iron-rules -->"
 END_MARK = "<!-- END: global-iron-rules -->"
@@ -184,15 +184,13 @@ def resolve_targets(target_arg, mf, home, env=None):
         if env.get("CODEX_THREAD_ID"):
             return ["codex"], "环境变量 -> codex"
         existing = [k for k in known if expand_user(mf.hosts[k]["root"], home).exists()]
-        if "claude" in existing and "codex" in existing:
-            die("同时检测到 ~/.claude 与 ~/.codex，无法唯一确定宿主。\n请用 --target claude、--target codex 或 --target both 明确指定。")
         if len(existing) > 1:
             die(f"检测到多个宿主（{'、'.join(existing)}），无法唯一确定，请用 --target 明确指定。")
         if len(existing) == 1:
             k = existing[0]
             label = {"claude": "仅存在 ~/.claude", "codex": "仅存在 ~/.codex"}.get(k, f"仅存在 {mf.hosts[k]['root']}")
             return [k], label
-        die("未检测到 ~/.claude 或 ~/.codex（或 ~/.agents），请用 --target 明确指定（可先创建对应目录）。")
+        die("未检测到 ~/.claude、~/.codex 或 ~/.agents，请用 --target 明确指定（可先创建对应目录）。")
     if target_arg == "both":
         return ["claude", "codex"], "both"
     if target_arg in known:
@@ -246,7 +244,7 @@ def plan_rules(mf, key, home, mode, repo, ts):
     src_text, src_block = load_block(repo, mf.rules_src)
     tgt = mf.rules_path(key, home)
     if points_to(tgt, repo / mf.rules_src):
-        return "skip", tgt, None, "链接已指向仓库源"
+        return "skip", tgt, None, "跳过：链接已指向仓库源"
     if tgt.is_symlink():
         return "error", tgt, None, "目标是符号链接，拒绝写入（人工处理）"
     if not tgt.exists():
@@ -264,7 +262,7 @@ def plan_rules(mf, key, home, mode, repo, ts):
         if mode == "replace":
             return "replace_file", tgt, bak, "整文件替换"
         reason = "追加受管区块"
-        if "全局核心铁律" in text or "不可逆操作确认" in text:
+        if "全局核心铁律" in text or "不可逆操作确认" in text:  # 弱启发式：改词即失效，仅提示人工核对
             reason += "；[警告] 疑似已有旧版未受管铁律，直接追加会重复或冲突，" \
                       "请人工合并，或经用户确认后改用 --mode replace"
         return "append", tgt, bak, reason
@@ -296,7 +294,7 @@ def apply_rules(mf, key, home, mode, repo, ts, dry_run):
     if st == "abort":
         die(f"{tgt} 已有内容但没有受管标记；按 --mode abort 停止")
     if st == "skip":
-        print("  规则文件: 跳过：已最新")
+        print(f"  规则文件: {reason}")
         return
     label = {"new": "新建", "append": "追加受管区块", "replace_block": "替换受管区块",
              "replace_file": "整文件替换"}[st]

@@ -20,21 +20,21 @@ git clone https://github.com/zhuoH27/zhuoh-agent-config.git agent-config
 Set-Location agent-config
 git rev-parse HEAD   # 记下 commit hash，汇报时附上
 ```
-不能 clone 时，下载 ZIP 并解压，进入含 `scripts/agent_sync.py` 的目录。不要把仓库放进 `~/.claude` 或 `~/.codex` 里面。
+不能 clone 时，下载 ZIP 并解压，进入含 `scripts/agent_sync.py` 的目录。不要把仓库放进 `~/.claude`、`~/.codex` 或 `~/.agents` 里面。
 
 ## 2. 检查 Python 并识别宿主
 需要 Windows 与 Python 3（标准库即可）。无 Python 的机器走兜底路径（见第 4 节）。
 ```bash
 python scripts/agent_sync.py setup --dry-run --target auto
 ```
-- 输出“同时检测到 ~/.claude 与 ~/.codex”时，停下问用户选 `claude`、`codex` 还是 `both`，不要替用户选。
+- 输出“检测到多个宿主”时，停下问用户选 `claude`、`codex`、`agents` 还是 `both`（按报错列出的宿主；`both` 恒为 claude + codex），不要替用户选。
 - 环境变量已唯一指向宿主时按输出继续。
 - 不要跳过 dry-run。
 
 ## 3. 展示计划
 把 dry-run 输出原样给用户，说明：将新建/替换/追加哪个规则文件、将新建或覆盖哪些技能、会产生哪些备份（位于 `~/.zhuoh-agent-backup/<时间戳>/`）。
 明确问：“是否批准 apply（target = X）？”——写出具体 target。
-dry-run 出现 `[警告]`（疑似旧版未受管铁律、标记异常）时必须停下，逐条向用户说明，由用户决定处理方式（人工合并、`--mode replace` 或放弃），不得自行选择 `--mode`。
+dry-run 出现 `[警告]`（疑似旧版未受管铁律）时必须停下，逐条向用户说明，由用户决定处理方式（人工合并、`--mode replace` 或放弃），不得自行选择 `--mode`。标记异常不是警告而是硬错误：引擎会直接停止，同权限拒绝一样停下汇报。
 
 ## 4. 执行
 ```bash

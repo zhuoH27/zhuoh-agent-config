@@ -6,7 +6,7 @@
 #                     --mode append|replace|abort --home 目录 --version
 # 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/。
 
-$VERSION = '3.2.0'
+$VERSION = '3.3.0'
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
 
@@ -91,6 +91,20 @@ function Backup-Target([string]$srcFile) {
     return $cand
 }
 
+function Test-Link([string]$p) {
+    # 5.1/7 对悬空链接的 Get-Item 行为不一：拿不到条目时再看父目录列举，缺失文件返回 False
+    $item = Get-Item -Force -LiteralPath $p -ErrorAction SilentlyContinue
+    if ($null -ne $item) {
+        return [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
+    }
+    $parent = Split-Path -Parent $p
+    if (-not (Test-Path -LiteralPath $parent)) { return $false }
+    $name = Split-Path -Leaf $p
+    $entry = Get-ChildItem -Force -LiteralPath $parent -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq $name } | Select-Object -First 1
+    return ($null -ne $entry)
+}
+
 try {
     $manifest = Get-Content (Join-Path $Repo 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 } catch {
@@ -112,7 +126,7 @@ function Copy-Host([string]$key) {
     else { Write-Error "manifest root 必须以 ~ 开头或为绝对路径: $hr"; exit 1 }
     $rules = Join-Path $root ([string]$h.rules_target)
     $skillsDst = Join-Path $root ([string]$h.skills_dir)
-    New-Item -ItemType Directory -Path $skillsDst -Force | Out-Null
+    if (Test-Link $rules) { Write-Error "$rules 是链接（符号链接/junction/悬空链接），拒绝写入（人工处理）"; exit 1 }
     if (Test-Path $rules) {
         if ($mode -eq 'abort') { Write-Error "$rules 已存在；兜底默认 --mode abort 停止（人工合并后重跑，或显式 --mode replace，覆盖前自动备份）"; exit 1 }
         $bak = Backup-Target $rules
@@ -120,30 +134,50 @@ function Copy-Host([string]$key) {
     }
     Copy-Item (Join-Path $Repo ([string]$manifest.sources.rules)) $rules -Force
     Write-Output "写入: $rules"
-    foreach ($d in Get-ChildItem (Join-Path $Repo ([string]$manifest.sources.skills)) -Directory) {
-        $dst = Join-Path $skillsDst $d.Name
-        New-Item -ItemType Directory -Path $dst -Force | Out-Null
-        foreach ($f in Get-ChildItem $d.FullName -File -Recurse) {
-            $rel = $f.FullName.Substring($d.FullName.Length).TrimStart('\', '/')
-            $tgtFile = Join-Path $dst $rel
-            $tgtParent = Split-Path $tgtFile -Parent
-            if (-not (Test-Path $tgtParent)) { New-Item -ItemType Directory -Path $tgtParent -Force | Out-Null }
-            if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile }
-            Copy-Item $f.FullName $tgtFile -Force
+    if (Test-Link $skillsDst) {
+        Write-Output "跳过 skills（$skillsDst 是链接，人工处理）"
+    } else {
+        New-Item -ItemType Directory -Path $skillsDst -Force | Out-Null
+        foreach ($d in Get-ChildItem (Join-Path $Repo ([string]$manifest.sources.skills)) -Directory) {
+            $dst = Join-Path $skillsDst $d.Name
+            if (Test-Link $dst) { Write-Output "跳过 Skill $($d.Name)（$dst 是链接，人工处理）"; continue }
+            New-Item -ItemType Directory -Path $dst -Force | Out-Null
+            foreach ($f in Get-ChildItem $d.FullName -File -Recurse) {
+                $rel = $f.FullName.Substring($d.FullName.Length).TrimStart('\', '/')
+                $tgtFile = Join-Path $dst $rel
+                $relParts = $rel -split '[\\/]'
+                $blocked = $false
+                $walk = $dst
+                for ($i = 0; $i -lt $relParts.Count - 1; $i++) {
+                    $walk = Join-Path $walk $relParts[$i]
+                    if (Test-Link $walk) { Write-Output "跳过 $tgtFile（中间目录 $walk 是链接，人工处理）"; $blocked = $true; break }
+                }
+                if ($blocked) { continue }
+                if (Test-Link $tgtFile) { Write-Output "跳过 $tgtFile（目标是链接，人工处理）"; continue }
+                $tgtParent = Split-Path $tgtFile -Parent
+                if (-not (Test-Path $tgtParent)) { New-Item -ItemType Directory -Path $tgtParent -Force | Out-Null }
+                if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile }
+                Copy-Item $f.FullName $tgtFile -Force
+            }
+            Write-Output "Skill: $dst"
         }
-        Write-Output "Skill: $dst"
     }
     if ($h.prompts_dir) {
         $pSrc = Join-Path $Repo ([string]$manifest.sources.prompts)
         if (Test-Path $pSrc) {
             $pdir = Join-Path $root ([string]$h.prompts_dir)
-            New-Item -ItemType Directory -Path $pdir -Force | Out-Null
-            foreach ($f in Get-ChildItem $pSrc -Filter '*.md' -File) {
-                $tgtFile = Join-Path $pdir $f.Name
-                if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile }
-                Copy-Item $f.FullName $tgtFile -Force
+            if (Test-Link $pdir) {
+                Write-Output "跳过 prompts（$pdir 是链接，人工处理）"
+            } else {
+                New-Item -ItemType Directory -Path $pdir -Force | Out-Null
+                foreach ($f in Get-ChildItem $pSrc -Filter '*.md' -File) {
+                    $tgtFile = Join-Path $pdir $f.Name
+                    if (Test-Link $tgtFile) { Write-Output "跳过 $tgtFile（目标是链接，人工处理）"; continue }
+                    if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile }
+                    Copy-Item $f.FullName $tgtFile -Force
+                }
+                Write-Output "Prompt: $pdir"
             }
-            Write-Output "Prompt: $pdir"
         }
     }
 }
@@ -152,12 +186,13 @@ switch ($target) {
     { $_ -in 'claude', 'codex', 'agents' } { $hosts = @($target) }
     'both' { $hosts = @('claude', 'codex') }
     'auto' {
-        $c = 0
-        if (Test-Path (Join-Path $realHome '.claude')) { $c++ }
-        if (Test-Path (Join-Path $realHome '.codex')) { $c++ }
-        if ($c -gt 1) { Write-Error '同时检测到 ~/.claude 与 ~/.codex，请用 --target 明确指定。'; exit 1 }
-        if ($c -eq 0) { Write-Error '未检测到 ~/.claude 或 ~/.codex，请用 --target 明确指定。'; exit 1 }
-        $hosts = if (Test-Path (Join-Path $realHome '.claude')) { @('claude') } else { @('codex') }
+        $found = @()
+        foreach ($h in @('claude', 'codex', 'agents')) {
+            if (Test-Path (Join-Path $realHome ('.' + $h))) { $found += $h }
+        }
+        if ($found.Count -gt 1) { Write-Error ('检测到多个宿主（{0}），请用 --target 明确指定。' -f ($found -join '、')); exit 1 }
+        if ($found.Count -eq 0) { Write-Error '未检测到 ~/.claude、~/.codex 或 ~/.agents，请用 --target 明确指定。'; exit 1 }
+        $hosts = $found
     }
     default { Write-Error "未知 --target: $target"; exit 1 }
 }
