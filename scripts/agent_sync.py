@@ -327,7 +327,7 @@ def apply_rules(mf, key, home, mode, repo, ts, dry_run):
         atomic_write(tgt, body)
     else:
         rebuild_rules(tgt, src_block, detect_eol(read_utf8(tgt)))
-    suffix = f"；{reason}" if reason.startswith("追加") and "警告" in reason else ""
+    suffix = f"；{reason.split('；', 1)[1]}" if reason.startswith("追加") and "警告" in reason else ""
     print(f"  规则文件: {label}{suffix}（{tgt}）")
 
 
@@ -501,7 +501,7 @@ def audit_repo(repo):
         except (OSError, json.JSONDecodeError):
             pass
     files = [p for p in repo.rglob("*") if p.is_file()]
-    files = [p for p in files if not any(fnmatch.fnmatch(x, pat) for x in p.relative_to(repo).parts for pat in AUDIT_EXCLUDE_DIRS)]
+    files = [p for p in files if not any(fnmatch.fnmatchcase(x, pat) for x in p.relative_to(repo).parts[:-1] for pat in AUDIT_EXCLUDE_DIRS)]
     for p in files:
         if p.suffix.lower() not in AUDIT_TEXT_SUFFIXES or p.name == "REFACTOR_PLAN.md":
             continue

@@ -469,6 +469,16 @@ def test_audit_excludes_glob_dirs(tmp_path):
     assert rc == 0, out
 
 
+def test_audit_scans_underscore_t_files(tmp_path):
+    """_t* 通配只排除目录分量：同名文件（含大小写变体）必须仍被扫描。"""
+    victim = make_repo_copy(tmp_path)
+    write(victim / "_Token.md", "token: 'abcdefgh12345678'\n")
+    write(victim / "src" / "_tconf.py", "token: 'abcdefgh12345678'\n")
+    rc, out = run_engine("audit", repo=victim)
+    assert rc == 2, out
+    assert "_Token.md" in out
+
+
 def test_audit_clean_on_baseline():
     rc, out = run_engine("audit")
     assert rc == 0, out
