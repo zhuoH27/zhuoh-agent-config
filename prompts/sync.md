@@ -5,7 +5,7 @@
 请把当前宿主配置同步到仓库最新版：
 1. 在新的临时目录重新克隆 https://github.com/zhuoH27/zhuoh-agent-config.git，记录 git rev-parse HEAD。
 2. 若我告诉你上次安装的 commit，先给我看 git log --oneline <上次>..HEAD 和 git diff <上次>..HEAD --stat；不知道上次 commit 就说明并跳过。
-3. 运行 python scripts/agent_sync.py setup --dry-run --target <claude|codex|both>（macOS/Linux 也可 sh install.sh --dry-run --target <...>；Windows 可 powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --dry-run --target <...>），把将变更的文件、区块差异和备份清单给我确认。
+3. 运行 python scripts/agent_sync.py setup --dry-run --target <claude|codex|both>（无 Python 时用 powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --dry-run --target <...> 兜底），把将变更的文件、区块差异和备份清单给我确认。
 4. 我明确批准后运行同款 --apply（或去掉 --dry-run），再运行 python scripts/agent_sync.py doctor --target <...>，把结果贴给我。
 5. 若 dry-run 出现 [警告]（疑似旧版铁律、双端冲突）停下，由我决定处理方式；被权限/沙箱拒绝时停止汇报，不要换工具或路径绕过；不要删除旧 Skill 或 ~/.zhuoh-agent-backup 里的备份。
 ```

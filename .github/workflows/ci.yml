@@ -10,21 +10,15 @@ permissions:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            python-version: "3.12"
-          - os: windows-latest
-            python-version: "3.12"
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
       - name: Install test dependencies
         run: python -m pip install pytest python-pptx
       - name: Run tests
         run: python -m pytest tests/ -q
+      - name: Audit gate
+        run: python scripts/agent_sync.py audit

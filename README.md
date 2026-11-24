@@ -2,7 +2,8 @@
 把一套全局规则和 6 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
 
 - 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`）、`~/.agents` 约定。
-- **核心是 Python 引擎**：`scripts/agent_sync.py`（仅 Python 3 标准库）提供 setup / doctor / sync-back / audit / status 五个子命令；`install.sh` / `install.ps1` 是薄入口（无 Python 时退化为纯拷贝兜底）。
+- **平台：仅 Windows**（PowerShell 5.1+ / pwsh 7 + Python 3）；macOS/Linux 的 sh 入口与对应 CI 已移除，不再维护。
+- **核心是 Python 引擎**：`scripts/agent_sync.py`（仅 Python 3 标准库）提供 setup / doctor / sync-back / audit / status 五个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
 - 安装产物只有 Markdown：规则文件 + 6 个 `SKILL.md`（含 `zhuoh-config-sync` 自维护技能）。
 - 自带备份、受管区块、dry-run 与校验；不删除旧 Skill，不自动改 `.gitignore`。
 
@@ -35,12 +36,11 @@ zhuoh-agent-config/
 ├── BOOTSTRAP.md                  # 新机首次部署引导（给执行 agent）
 ├── README.md                     # 本文件
 ├── manifest.json                 # 宿主路径映射清单（声明式单一数据源）
-├── install.sh                    # 薄入口（POSIX sh；无 Python 时纯拷贝兜底）
-├── install.ps1                   # 薄入口（PowerShell 5.1+；同上兜底）
+├── install.ps1                   # 唯一薄入口（PowerShell 5.1+；无 Python 时纯拷贝兜底）
 ├── scripts/agent_sync.py         # 核心引擎（Python 3 标准库，≤600 行）
 ├── LICENSE                       # MIT
 ├── .gitignore / .gitattributes   # 忽略备份与缓存；统一 LF（ps1 例外 CRLF）
-├── .github/workflows/ci.yml      # Ubuntu + Windows 自动测试与 audit 门禁
+├── .github/workflows/ci.yml      # Windows 自动测试与 audit 门禁
 ├── tests/
 │   ├── test_sync_engine.py       # 引擎黑盒测试（--home/--repo 沙盒）
 │   ├── test_content.py           # 内容一致性校验（动态遍历 skills/*）
@@ -56,16 +56,15 @@ zhuoh-agent-config/
 ```
 
 ## 安装与命令速查
-有 Python 3 的机器（推荐，全功能）：
-```bash
+有 Python 3 的 Windows（推荐，全功能）：
+```powershell
 python scripts/agent_sync.py setup --dry-run --target auto
 python scripts/agent_sync.py setup --target claude    # 或 codex / both / agents
 python scripts/agent_sync.py doctor --target claude
 ```
-无 Python 的机器（兜底，纯拷贝）：
-```bash
-sh install.sh --target claude                          # macOS/Linux/Git Bash
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target claude   # Windows
+无 Python 的 Windows（兜底，纯拷贝）：
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target claude
 ```
 `-ExecutionPolicy Bypass` 只作用于本次进程，不改系统策略。兜底模式不支持 `--dry-run` 与受管区块合并（整文件替换），装好后建议补装 Python 并重跑 setup 获得完整保护。
 
@@ -102,7 +101,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 python -m pip install pytest
 python -m pytest tests/ -q
 ```
-测试全部通过 `--home` / `--repo` 指向临时目录运行（含带空格的路径），不触碰真实配置。CI（`.github/workflows/ci.yml`）在 Ubuntu 与 Windows 上跑同一套测试并执行 `audit` 门禁。
+测试全部通过 `--home` / `--repo` 指向临时目录运行（含带空格的路径），不触碰真实配置。CI（`.github/workflows/ci.yml`）在 Windows 上跑同一套测试并执行 `audit` 门禁。
 
 ## 版本
 当前版本见 `scripts/agent_sync.py` 头部的 `VERSION` 常量。发布固定版本：

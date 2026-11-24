@@ -43,17 +43,17 @@ def test_annotation_vocabulary_uniform():
         assert "【估算】" not in text, f"{p.name} 仍有【估算】"
 
 
-def test_installers_share_version():
-    sh = (REPO / "install.sh").read_text(encoding="utf-8")
+def test_installer_version_matches_engine():
     ps1 = (REPO / "install.ps1").read_bytes().decode("utf-8-sig")
-    m1 = re.search(r"^VERSION='([^']+)'", sh, re.M)
-    m2 = re.search(r"^\$VERSION = '([^']+)'", ps1, re.M)
-    assert m1 and m2 and m1.group(1) == m2.group(1), "两脚本 VERSION 应一致"
+    engine = (REPO / "scripts" / "agent_sync.py").read_text(encoding="utf-8")
+    m1 = re.search(r"^\$VERSION = '([^']+)'", ps1, re.M)
+    m2 = re.search(r'^VERSION = "([^"]+)"', engine, re.M)
+    assert m1 and m2 and m1.group(1) == m2.group(1), "入口与引擎 VERSION 应一致"
 
 
 def test_line_count_within_limit():
     for name in ("scripts/agent_sync.py", "tests/test_sync_engine.py",
-                 "tests/test_content.py", "install.sh", "install.ps1"):
+                 "tests/test_content.py", "install.ps1"):
         path = REPO / name
         if not path.exists():
             continue
@@ -97,8 +97,13 @@ def test_gbt_2025_default():
     assert "[DS/OL]" in pw and "[PP/OL]" in pw, "2025 版新增类型应已落地"
 
 
-def test_docs_use_new_entrypoints():
+def test_docs_use_windows_entrypoint():
     for name in ("README.md", "BOOTSTRAP.md", "prompts/sync.md"):
         text = (REPO / name).read_text(encoding="utf-8")
         assert "python install.py" not in text, f"{name} 仍引用 python install.py"
-        assert "install.sh" in text or "install.ps1" in text, f"{name} 应引用新安装器"
+        assert "install.ps1" in text, f"{name} 应引用 Windows 入口 install.ps1"
+        assert "install.sh" not in text, f"{name} 不应再引用已移除的 POSIX 入口"
+
+
+def test_posix_entrypoint_removed():
+    assert not (REPO / "install.sh").exists(), "本仓库仅维护 Windows，POSIX 入口应已移除"

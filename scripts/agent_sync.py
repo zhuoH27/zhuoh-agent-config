@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 REPO = Path(__file__).resolve().parent.parent
 BEGIN_MARK = "<!-- BEGIN: global-iron-rules -->"
 END_MARK = "<!-- END: global-iron-rules -->"
