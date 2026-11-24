@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": "20261124202824",
   "backup_root": "~/.zhuoh-agent-backup",
   "default_mode": "copy",
   "hosts": {

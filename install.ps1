@@ -1,12 +1,12 @@
-# agent-config 极简入口（Windows PowerShell 5.1+ / pwsh 7）。
+﻿# agent-config 极简入口（Windows PowerShell 5.1+ / pwsh 7）。
 # 核心逻辑在 scripts/agent_sync.py（Python 3 标准库）；本文件以 UTF-8 BOM + CRLF 保存（.gitattributes）。
 # 有 Python：透传参数（--verify 映射为 doctor）。
 # 无 Python：裸机兜底，纯拷贝 AGENTS.md、skills/ 与 prompts/ 到宿主（备份后覆盖，不删额外文件）。
-# 兼容原 v2.2.0 参数：[--dry-run|--apply|--verify] --target auto|claude|codex|agents|both
+# 参数：[--dry-run|--apply|--verify] --target auto|claude|codex|agents|both
 #                     --mode append|replace|abort --home 目录 --version
 # 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/。
 
-$VERSION = '3.2.0'
+$VERSION = '20261124202824'
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
 

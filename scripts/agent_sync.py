@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""agent-config 核心同步引擎（Windows 平台，Python 3 标准库，无外部依赖）。
+"""agent-config 核心同步引擎（Python 3 标准库，无外部依赖）。
 
 命令面：setup / doctor / audit / status。
-行为契约继承原 install.ps1 v2.2.0：auto 探测（环境变量优先）、
+行为契约：auto 探测（环境变量优先）、
 规则文件 append/replace/abort、受管标记防护、换行沿用、BOM 剥离、UTF-8
 强校验、备份命名 <原名>_<TS>.<ext>.bak（重名 _2/_3）、原子写入、链接目标
 拒绝写入。备份统一存 ~/.zhuoh-agent-backup/<TS>/，不污染技能目录。
@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "3.2.0"
+VERSION = "20261124202824"
 REPO = Path(__file__).resolve().parent.parent
 BEGIN_MARK = "<!-- BEGIN: global-iron-rules -->"
 END_MARK = "<!-- END: global-iron-rules -->"
@@ -441,7 +441,7 @@ def cmd_setup(args):
 
 
 def verify_content(tgt, src):
-    """对齐原 v2.2.0 --verify：受管区块逐字一致 + 铁律编号 1-10。"""
+    """--verify 语义：受管区块逐字一致 + 铁律编号 1-10。"""
     try:
         t, s = read_utf8(tgt), read_utf8(src)
     except SystemExit:

@@ -35,7 +35,6 @@ description: "用户要求同步配置、更新配置、检查配置同步状态
 | `status [--json]` | 当前模式、各宿主同步状态摘要 |
 
 ## 硬性边界
-- 平台：仅维护 Windows（PowerShell 5.1+ / pwsh 7 + Python 3）；不提供 macOS/Linux 入口，不得重新引入 sh 入口或非 Windows CI。
 - 备份统一在 `~/.zhuoh-agent-backup/<YYYYMMDD_HHMMSS>/`，命名 `<原名>_<TS>.<ext>.bak`（重名 `_2`/`_3`）；不覆盖旧备份；不修改 `.bak` 文件。
 - 不删除宿主里本仓库不管理的第三方技能（如 `academic-pptx`、`anti-defensive-writing`）及技能目录内的额外文件；功能重叠仅提醒。
 - 换行沿用目标原文件；写入 UTF-8 无 BOM；非法 UTF-8（GBK/UTF-16）报错停止。

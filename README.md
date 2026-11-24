@@ -2,7 +2,6 @@
 把一套全局规则和 6 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
 
 - 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`）、`~/.agents` 约定。
-- **平台：仅 Windows**（PowerShell 5.1+ / pwsh 7 + Python 3）；macOS/Linux 的 sh 入口与对应 CI 已移除，不再维护。
 - **核心是 Python 引擎**：`scripts/agent_sync.py`（仅 Python 3 标准库）提供 setup / doctor / audit / status 四个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
 - 安装产物只有 Markdown：规则文件 + 6 个 `SKILL.md`（含 `references/` 与 `zhuoh-config-sync` 自维护技能）。
 - 自带备份、受管区块、dry-run 与校验；支持每次更新时安全覆盖安装；不删除旧 Skill 与用户额外文件，不自动改 `.gitignore`。
@@ -27,7 +26,7 @@
 ```
 
 ## 事实来源
-`AGENTS.md` 与 `skills/*/SKILL.md` 是唯一事实来源（历史上由一次性配置指令逐字提取，原始存档已移除）。修改请直接改这些源文件，保持 UTF-8（无 BOM）。铁律编号（1–10）不得重排：Skill 按编号引用铁律（如 zhuoh-paper-writing 引用第 3 条），`doctor` 也会校验编号。
+`AGENTS.md` 与 `skills/*/SKILL.md` 是唯一事实来源。修改请直接改这些源文件，保持 UTF-8（无 BOM）。铁律编号（1–10）不得重排：Skill 按编号引用铁律（如 zhuoh-paper-writing 引用第 3 条），`doctor` 也会校验编号。
 
 ## 仓库结构
 ```text
@@ -40,7 +39,7 @@ zhuoh-agent-config/
 ├── scripts/agent_sync.py         # 核心引擎（Python 3 标准库，≤600 行）
 ├── LICENSE                       # MIT
 ├── .gitignore / .gitattributes   # 忽略备份与缓存；统一 LF（ps1 例外 CRLF）
-├── .github/workflows/ci.yml      # Windows 自动测试与 audit 门禁
+├── .github/workflows/ci.yml      # 自动测试与 audit 门禁
 ├── tests/
 │   ├── test_sync_engine.py       # 引擎黑盒测试（--home/--repo 沙盒）
 │   ├── test_content.py           # 内容一致性校验（动态遍历 skills/*）
@@ -56,13 +55,13 @@ zhuoh-agent-config/
 ```
 
 ## 安装与命令速查
-有 Python 3 的 Windows（推荐，全功能）：
+有 Python 3（推荐，全功能）：
 ```powershell
 python scripts/agent_sync.py setup --dry-run --target auto
 python scripts/agent_sync.py setup --target claude    # 或 codex / both / agents
 python scripts/agent_sync.py doctor --target claude
 ```
-无 Python 的 Windows（兜底，纯拷贝）：
+无 Python（兜底，纯拷贝）：
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target claude
 ```
@@ -94,20 +93,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 - 私有仓库需要登录或 token，无法只靠 URL 一键；建议公开。
 
 ## 作者偏好声明
-`zhuoh-ppt-maker` 的默认交付形态、文献汇报署名占位、字体搭配、正文黑白配色，`zhuoh-paper-writing` 默认参考文献版本策略，`zhuoh-paper-review` 的 IMRaD 默认范式、优先级权重与 ✅/⚠️/❌ 输出格式，以及 `zhuoh-config-sync` 的“复制优先于链接”默认模式，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md` 与 `manifest.json`；这些选择不构成对其他方案的否定。
+`zhuoh-ppt-maker` 的默认交付形态、文献汇报署名占位、字体搭配、正文黑白配色，`zhuoh-paper-writing` 默认参考文献版本策略，`zhuoh-paper-review` 的 IMRaD 默认范式、优先级权重与 ✅/⚠️/❌ 输出格式，以及 `zhuoh-config-sync` 的“复制优先于链接”默认模式，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md` 与 `manifest.json`。
 
 ## 开发与测试
 ```bash
 python -m pip install pytest
 python -m pytest tests/ -q
 ```
-测试全部通过 `--home` / `--repo` 指向临时目录运行（含带空格的路径），不触碰真实配置。CI（`.github/workflows/ci.yml`）在 Windows 上跑同一套测试并执行 `audit` 门禁。
+测试全部通过 `--home` / `--repo` 指向临时目录运行（含带空格的路径），不触碰真实配置。CI（`.github/workflows/ci.yml`）跑同一套测试并执行 `audit` 门禁。
 
 ## 版本
 当前版本见 `scripts/agent_sync.py` 头部的 `VERSION`常量。发布固定版本：
 ```bash
-git tag vX.Y.Z
-git push origin vX.Y.Z
+git tag vYYYYMMDDHHMMSS
+git push origin vYYYYMMDDHHMMSS
 ```
 tag 与 push 必须使用同一个版本号。
 
