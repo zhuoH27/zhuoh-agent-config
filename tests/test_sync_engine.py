@@ -125,6 +125,13 @@ def test_idempotent_second_apply(tmp_path):
     assert "已最新" in out
 
 
+def test_apply_alias_accepted(tmp_path):
+    home = make_home(tmp_path)
+    rc, out = run_engine("setup", "--apply", "--target", "claude", "--home", str(home))
+    assert rc == 0, out
+    assert rules_path(home).exists()
+
+
 def test_target_agents(tmp_path):
     home = make_home(tmp_path)
     rc, out = run_engine("setup", "--target", "agents", "--home", str(home))

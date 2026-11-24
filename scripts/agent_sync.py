@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""agent-config 核心同步引擎（Python 3 标准库，无外部依赖）。
+"""agent-config 核心同步引擎（Windows 平台，Python 3 标准库，无外部依赖）。
 
 命令面：setup / doctor / sync-back / audit / status。
-行为契约继承原 install.sh / install.ps1 v2.2.0：auto 探测（环境变量优先）、
+行为契约继承原 install.ps1 v2.2.0：auto 探测（环境变量优先）、
 规则文件 append/replace/abort、受管标记防护、换行沿用、BOM 剥离、UTF-8
 强校验、备份命名 <原名>_<TS>.<ext>.bak（重名 _2/_3）、原子写入、链接目标
 拒绝写入。备份统一存 ~/.zhuoh-agent-backup/<TS>/，不污染技能目录。
@@ -28,7 +28,7 @@ STATE_FILE = ".sync-state.json"
 AUDIT_EXCLUDE_DIRS = {".git", "__pycache__", ".pytest_cache", "_backup", "node_modules"}
 AUDIT_EXCLUDE_DIRS.add("tests")   # 测试文件内置假密钥样本，不参与审计
 AUDIT_EXCLUDE_DIRS.add("_t*")     # pytest tmp 工件
-AUDIT_TEXT_SUFFIXES = {".md", ".py", ".json", ".yml", ".yaml", ".sh", ".ps1", ".txt",
+AUDIT_TEXT_SUFFIXES = {".md", ".py", ".json", ".yml", ".yaml", ".ps1", ".txt",
                        ".toml", ".cfg", ".ini", ".html", ".css", ".js", ".ts"}
 SECRET_PATTERNS = tuple((re.compile(p), n) for p, n in (
     (r"sk-[A-Za-z0-9]{20,}", "OpenAI 风格 API Key"),
@@ -478,8 +478,9 @@ def audit_repo(repo):
     if changed:
         files = [repo / c for c in changed if (repo / c).is_file()]
     else:
-        files = [p for p in repo.rglob("*") if p.is_file()
-                 and not (AUDIT_EXCLUDE_DIRS & set(p.parts))]
+        files = [p for p in repo.rglob("*") if p.is_file()]
+    # 排除规则对「改动文件」与「全量扫描」一视同仁（tests/ 含假密钥样本）
+    files = [p for p in files if not (AUDIT_EXCLUDE_DIRS & set(p.relative_to(repo).parts))]
     for p in files:
         if p.suffix.lower() not in AUDIT_TEXT_SUFFIXES or p.name in (STATE_FILE, 'REFACTOR_PLAN.md'):
             continue
@@ -547,6 +548,7 @@ def main(argv=None):
         return p
     p = sp("setup", help="一键初始化/恢复")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--apply", action="store_true", help="兼容旧入口：setup 默认即执行")
     p.add_argument("--mode", choices=["append", "replace", "abort", "copy", "link"])
     p.set_defaults(func=cmd_setup)
     p = sp("doctor", help="健康体检与断链自愈")
