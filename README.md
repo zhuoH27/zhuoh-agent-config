@@ -92,6 +92,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 - 已有文件的换行风格沿用原文件；不整体改写。
 - 不写密钥、令牌或个人信息；本仓库本身不含密钥；`audit` 命令在推送前扫描密钥与硬编码本地路径。
 - 私有仓库需要登录或 token，无法只靠 URL 一键；建议公开。
+- `manifest.json` 的宿主 `root` 须以 `~` 开头或为绝对路径；兜底模式对相对 root 直接报错不写入。
 
 ## 作者偏好声明
 `zhuoh-ppt-maker` 的默认交付形态、文献汇报署名占位、字体搭配、正文黑白配色，`zhuoh-paper-writing` 默认参考文献版本策略，`zhuoh-paper-review` 的 IMRaD 默认范式、优先级权重与 ✅/⚠️/❌ 输出格式，以及 `zhuoh-config-sync` 的“复制优先于链接”默认模式，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md` 与 `manifest.json`；这些选择不构成对其他方案的否定。

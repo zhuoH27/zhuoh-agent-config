@@ -101,8 +101,15 @@ if (-not $manifest.hosts) { Write-Error 'manifest.json 缺少 hosts，兜底模�
 
 function Copy-Host([string]$key) {
     $h = $manifest.hosts.$key
+    if (-not $h -or -not $h.root -or -not $h.rules_target -or -not $h.skills_dir) {
+        Write-Error "manifest hosts.$key 缺少必需字段（root/rules_target/skills_dir）"
+        exit 1
+    }
     $hr = [string]$h.root
-    $root = if ($hr.StartsWith('~')) { Join-Path $realHome ($hr -replace '^~[\\/]+', '') } else { $hr }
+    if ($hr -eq '~') { $root = $realHome }
+    elseif ($hr.StartsWith('~')) { $root = Join-Path $realHome ($hr -replace '^~[\\/]+', '') }
+    elseif ([IO.Path]::IsPathRooted($hr)) { $root = $hr }
+    else { Write-Error "manifest root 必须以 ~ 开头或为绝对路径: $hr"; exit 1 }
     $rules = Join-Path $root ([string]$h.rules_target)
     $skillsDst = Join-Path $root ([string]$h.skills_dir)
     New-Item -ItemType Directory -Path $skillsDst -Force | Out-Null
