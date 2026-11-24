@@ -85,7 +85,7 @@ def block_variant(extra_line):
 def test_version():
     rc, out = run_engine("--version")
     assert rc == 0
-    assert "agent-config 3.1.0" in out
+    assert "agent-config 3.2.0" in out
 
 
 def test_fresh_apply_claude(tmp_path):
@@ -154,6 +154,7 @@ def test_prompts_copied_for_codex(tmp_path):
     home = make_home(tmp_path)
     rc, out = run_engine("setup", "--target", "codex", "--home", str(home))
     assert rc == 0, out
+    assert "Prompt sync.md: 新建" in out
     p = home / ".codex" / "prompts" / "sync.md"
     assert p.exists()
     assert norm(read(p)) == norm((REPO / "prompts" / "sync.md").read_bytes())
@@ -273,7 +274,7 @@ def test_mode_replace_full_file(tmp_path):
     home = make_home(tmp_path)
     write(rules_path(home), "自定义指令\n\n更多内容\n")
     rc, out = run_engine("setup", "--target", "claude", "--home", str(home),
-                         "--mode", "replace")
+                         "--mode", "replace", "--skill-mode", "copy")
     assert rc == 0, out
     assert "整文件替换" in out
     assert norm(read(rules_path(home))) == expected_rules()
@@ -344,6 +345,26 @@ def test_extra_skill_files_untouched(tmp_path):
     assert extra.exists()
 
 
+def test_skill_references_updated_and_doctored(tmp_path):
+    repo = make_repo_copy(tmp_path)
+    home = make_home(tmp_path)
+    rc, _ = run_engine("setup", "--target", "claude", "--home", str(home), repo=repo)
+    assert rc == 0
+    ref_src = repo / "skills" / "zhuoh-ppt-maker" / "references" / "layout-guide.md"
+    ref_tgt = home / ".claude" / "skills" / "zhuoh-ppt-maker" / "references" / "layout-guide.md"
+    assert ref_tgt.exists()
+    # 模拟仓库升级 references
+    write(ref_src, norm(read(ref_src)) + "\n新增参考行\n")
+    rc, out = run_engine("doctor", "--target", "claude", "--home", str(home), repo=repo)
+    assert rc == 2 and "layout-guide.md" in out
+    rc, out = run_engine("setup", "--target", "claude", "--home", str(home), repo=repo)
+    assert rc == 0, out
+    assert "新增参考行" in norm(read(ref_tgt))
+    assert (home / ".zhuoh-agent-backup" / TS / f"layout-guide_{TS}.md.bak").exists()
+    rc, out = run_engine("doctor", "--target", "claude", "--home", str(home), repo=repo)
+    assert rc == 0, out
+
+
 def test_overlap_hint(tmp_path):
     home = make_home(tmp_path)
     write(home / ".claude" / "skills" / "code-standards" / "SKILL.md", "旧版技能\n")
@@ -354,7 +375,7 @@ def test_overlap_hint(tmp_path):
     assert "my-tool" in out
 
 
-# --- doctor / sync-back / audit / status ---
+# --- doctor / audit / status ---
 
 def test_doctor_healthy(tmp_path):
     home = make_home(tmp_path)
@@ -380,21 +401,8 @@ def make_repo_copy(tmp_path):
     """写回类测试的沙盒仓库副本：绝不污染真实仓库。"""
     victim = tmp_path / "repo"
     shutil.copytree(REPO, victim, ignore=shutil.ignore_patterns(
-        ".git", "__pycache__", ".pytest_cache", ".sync-state.json"))
+        ".git", "__pycache__", ".pytest_cache"))
     return victim
-
-
-def test_sync_back_local_only(tmp_path):
-    repo = make_repo_copy(tmp_path)
-    home = make_home(tmp_path)
-    rc, _ = run_engine("setup", "--target", "claude", "--home", str(home), repo=repo)
-    assert rc == 0
-    p = rules_path(home)
-    changed = norm(read(p)).replace("# 全局核心铁律", "# 本机新标题")
-    write(p, changed)
-    rc, out = run_engine("sync-back", "--target", "claude", "--home", str(home), repo=repo)
-    assert rc == 0, out
-    assert norm(read(Path(repo) / "AGENTS.md")) == changed  # 写回沙盒副本，不是真仓库
 
 
 def test_audit_catches_fake_key(tmp_path):
@@ -416,5 +424,5 @@ def test_status_json(tmp_path):
     rc, out = run_engine("status", "--json", "--home", str(home))
     assert rc == 0, out
     data = json.loads(out)
-    assert data["version"] == "3.1.0"
+    assert data["version"] == "3.2.0"
     assert set(data["hosts"]) == {"claude", "codex", "agents"}

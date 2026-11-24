@@ -3,9 +3,9 @@
 
 - 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`）、`~/.agents` 约定。
 - **平台：仅 Windows**（PowerShell 5.1+ / pwsh 7 + Python 3）；macOS/Linux 的 sh 入口与对应 CI 已移除，不再维护。
-- **核心是 Python 引擎**：`scripts/agent_sync.py`（仅 Python 3 标准库）提供 setup / doctor / sync-back / audit / status 五个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
-- 安装产物只有 Markdown：规则文件 + 6 个 `SKILL.md`（含 `zhuoh-config-sync` 自维护技能）。
-- 自带备份、受管区块、dry-run 与校验；不删除旧 Skill，不自动改 `.gitignore`。
+- **核心是 Python 引擎**：`scripts/agent_sync.py`（仅 Python 3 标准库）提供 setup / doctor / audit / status 四个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
+- 安装产物只有 Markdown：规则文件 + 6 个 `SKILL.md`（含 `references/` 与 `zhuoh-config-sync` 自维护技能）。
+- 自带备份、受管区块、dry-run 与校验；支持每次更新时安全覆盖安装；不删除旧 Skill 与用户额外文件，不自动改 `.gitignore`。
 
 ## 给 AI 的一键指令
 把下面整段发给新 agent（fork 本仓库的人请把 URL 换成自己的仓库地址）：
@@ -66,9 +66,9 @@ python scripts/agent_sync.py doctor --target claude
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target claude
 ```
-`-ExecutionPolicy Bypass` 只作用于本次进程，不改系统策略。兜底模式不支持 `--dry-run` 与受管区块合并（整文件替换），装好后建议补装 Python 并重跑 setup 获得完整保护。
+`-ExecutionPolicy Bypass` 只作用于本次进程，不改系统策略。兜底模式不支持 `--dry-run`、`--verify` 与受管区块合并（规则文件整文件替换），装好后建议补装 Python 并重跑 setup 获得完整保护。
 
-参数：`--target auto|claude|codex|agents|both`（auto 按环境变量 CLAUDECODE/CLAUDE_CODE_ENTRYPOINT/CODEX_THREAD_ID 优先，其次目录探测，双宿主并存报错）；`--mode append|replace|abort`（规则文件合并方式，默认 append）；`--home 目录`（测试沙盒用）；`AGENT_CONFIG_TS` 环境变量固定备份时间戳（测试用）。
+参数：`--target auto|claude|codex|agents|both`（auto 按环境变量 CLAUDECODE/CLAUDE_CODE_ENTRYPOINT/CODEX_THREAD_ID 优先，其次目录探测，双宿主并存报错）；`--mode append|replace|abort`（规则文件合并方式，默认 append）；`--skill-mode copy|link`（Skill 安装方式，默认读取 `manifest.json`）；`--home 目录`（测试沙盒用）；`AGENT_CONFIG_TS` 环境变量固定备份时间戳（测试用）。
 
 ## 规则文件已有内容怎么办
 - **没有受管标记**：默认追加铁律区块到文件末尾，保留原有内容（含末尾空行），先备份。需要整文件替换时用 `--mode replace`；`--mode abort` 直接停止。
@@ -81,14 +81,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 对本仓库的 agent 说 **“同步配置”**（或 `/sync`），它会按 `skills/zhuoh-config-sync/SKILL.md` 执行闭环：doctor 体检 → audit 安全门禁 → pytest → 变更摘要 → 你确认后 commit，**push 前必须获你批准**。
 
 ## 更新
-1. 改本仓库里的 `AGENTS.md` 或 `skills/*/SKILL.md`，commit 后 push。
+1. 改本仓库里的 `AGENTS.md` 或 `skills/*`，commit 后 push。
 2. 新 agent 继续用同一个仓库地址，拿到的就是最新版。
-3. 已安装的 agent 发 `prompts/sync.md` 里的指令，让它重新克隆最新版后 dry-run、apply、doctor。
+3. 已安装的 agent 发 `prompts/sync.md` 里的指令，让它重新克隆最新版后 dry-run、apply、doctor（同名技能与 `references/` 均会备份后覆盖更新）。
 需要固定版本时，用 tag 或 commit 的 URL，而不是 `main` 分支。
 
 ## 安全边界
 - 写入前按系统时间戳备份到 `~/.zhuoh-agent-backup/<YYYYMMDD_HHMMSS>/`，命名 `<原名>_<TS>.<ext>.bak`，重名加 `_2`/`_3`；不覆盖旧备份；技能目录内零 `.bak` 残留。
-- 同名 Skill 只覆盖 `SKILL.md`，目录内其他文件不动；功能重叠的旧 Skill 只提醒，不删除。
+- 同名 Skill 仅备份并覆盖仓库包含的文件（`SKILL.md` 与 `references/`），目录内其他文件不动；功能重叠的旧 Skill 只提醒，不删除。
 - 已有文件的换行风格沿用原文件；不整体改写。
 - 不写密钥、令牌或个人信息；本仓库本身不含密钥；`audit` 命令在推送前扫描密钥与硬编码本地路径。
 - 私有仓库需要登录或 token，无法只靠 URL 一键；建议公开。
@@ -104,7 +104,7 @@ python -m pytest tests/ -q
 测试全部通过 `--home` / `--repo` 指向临时目录运行（含带空格的路径），不触碰真实配置。CI（`.github/workflows/ci.yml`）在 Windows 上跑同一套测试并执行 `audit` 门禁。
 
 ## 版本
-当前版本见 `scripts/agent_sync.py` 头部的 `VERSION` 常量。发布固定版本：
+当前版本见 `scripts/agent_sync.py` 头部的 `VERSION`常量。发布固定版本：
 ```bash
 git tag vX.Y.Z
 git push origin vX.Y.Z
@@ -120,4 +120,3 @@ MIT，见 `LICENSE`。
 - **报“无法按 UTF-8 解码”**：目标文件是 GBK/UTF-16 等编码，先转成 UTF-8 再运行。
 - **新会话看不到 Skill**：确认 `SKILL.md` 第一行是 `---`、`name` 与目录名一致、`description` 是单行；然后重启宿主会话。
 - **想回滚**：从 `~/.zhuoh-agent-backup/<时间戳>/` 取回备份文件，按原路径放回。
-- **宿主端手改了配置想收回仓库**：`python scripts/agent_sync.py sync-back`（有基线才写回；双端冲突会阻断）。
