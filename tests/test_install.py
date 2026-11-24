@@ -113,7 +113,7 @@ def test_sh_syntax(installer):
 def test_version(installer):
     rc, out = run_installer(installer, "--version")
     assert rc == 0
-    assert "agent-config 2.0.0" in out
+    assert "agent-config 2.1.0" in out
 
 
 def test_fresh_apply_and_verify(installer, tmp_path):
@@ -126,7 +126,7 @@ def test_fresh_apply_and_verify(installer, tmp_path):
     assert p.exists()
     assert read(p)[:3] != b"\xef\xbb\xbf"  # 无 BOM
     assert norm(read(p)) == expected_rules()
-    for name in ("code-standards", "ppt-maker", "paper-writing", "idea-evaluation"):
+    for name in ("zhuoh-code-standards", "zhuoh-ppt-maker", "zhuoh-paper-writing", "zhuoh-idea-evaluation"):
         sp = home / ".claude" / "skills" / name / "SKILL.md"
         assert sp.exists()
         assert norm(read(sp)) == skill_text(name)
@@ -362,7 +362,8 @@ def test_symlink_rules_rejected(installer, tmp_path):
 
 def test_extra_skill_files_and_overlap_hint(installer, tmp_path):
     home = make_home(tmp_path)
-    write(home / ".claude" / "skills" / "code-standards" / "extra.txt", "x\n")
+    write(home / ".claude" / "skills" / "zhuoh-code-standards" / "extra.txt", "x\n")
+    write(home / ".claude" / "skills" / "code-standards" / "SKILL.md", "旧版技能\n")  # 未加前缀的旧名
     (home / ".claude" / "skills" / "coding-standards").mkdir(parents=True)
     (home / ".claude" / "skills" / "my-tool").mkdir(parents=True)
     rc, out = run_installer(installer, "--dry-run", "--target", "claude", "--home", str(home))
@@ -370,7 +371,8 @@ def test_extra_skill_files_and_overlap_hint(installer, tmp_path):
     assert "目录内其他文件" in out
     assert "extra.txt" in out
     assert "现有其他 Skill" in out
-    assert "coding-standards ≈ code-standards" in out
+    assert "coding-standards ≈ zhuoh-code-standards" in out
+    assert "code-standards ≈ zhuoh-code-standards" in out
     assert "my-tool" in out
 
 
@@ -386,13 +388,13 @@ def test_skill_replace_backup(installer, tmp_path):
     home = make_home(tmp_path)
     rc, _ = run_installer(installer, "--apply", "--target", "claude", "--home", str(home))
     assert rc == 0
-    sp = home / ".claude" / "skills" / "code-standards" / "SKILL.md"
-    modified = skill_text("code-standards") + "\n额外一行\n"
+    sp = home / ".claude" / "skills" / "zhuoh-code-standards" / "SKILL.md"
+    modified = skill_text("zhuoh-code-standards") + "\n额外一行\n"
     write(sp, modified)
     rc, out = run_installer(installer, "--apply", "--target", "claude", "--home", str(home))
     assert rc == 0, out
-    assert norm(read(sp)) == skill_text("code-standards")
-    bak = home / ".claude" / "_backup" / "skills" / "code-standards" / ("SKILL_" + TS + ".md.bak")
+    assert norm(read(sp)) == skill_text("zhuoh-code-standards")
+    bak = home / ".claude" / "_backup" / "skills" / "zhuoh-code-standards" / ("SKILL_" + TS + ".md.bak")
     assert bak.exists()
     assert norm(read(bak)) == modified
 

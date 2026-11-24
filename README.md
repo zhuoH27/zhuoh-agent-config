@@ -26,7 +26,7 @@
 ```
 
 ## 事实来源
-`AGENTS.md` 与 `skills/*/SKILL.md` 是唯一事实来源（历史上由一次性配置指令逐字提取，原始存档已移除）。修改请直接改这些源文件，保持 UTF-8（无 BOM）、LF 换行。铁律编号（1–10）不得重排：Skill 按编号引用铁律（如 paper-writing 引用第 3 条），`--verify` 也会校验编号。
+`AGENTS.md` 与 `skills/*/SKILL.md` 是唯一事实来源（历史上由一次性配置指令逐字提取，原始存档已移除）。修改请直接改这些源文件，保持 UTF-8（无 BOM）、LF 换行。铁律编号（1–10）不得重排：Skill 按编号引用铁律（如 zhuoh-paper-writing 引用第 3 条），`--verify` 也会校验编号。
 
 ## 仓库结构
 ```text
@@ -41,12 +41,13 @@ zhuoh-agent-config/
 ├── .github/workflows/ci.yml      # Ubuntu（sh）+ Windows（ps1）自动测试
 ├── tests/
 │   ├── test_install.py           # 两个安装器的黑盒测试（双驱动）
-│   └── test_pptx_font.py         # ppt-maker 字体片段的开发期实测（需 python-pptx，缺失则跳过）
+│   ├── test_content.py           # 仓库内容一致性校验（铁律引用、标注词汇、版本一致）
+│   └── test_pptx_font.py         # zhuoh-ppt-maker 字体片段的开发期实测（需 python-pptx，缺失则跳过）
 ├── skills/
-│   ├── code-standards/SKILL.md
-│   ├── ppt-maker/SKILL.md
-│   ├── paper-writing/SKILL.md
-│   └── idea-evaluation/SKILL.md
+│   ├── zhuoh-code-standards/SKILL.md
+│   ├── zhuoh-ppt-maker/SKILL.md
+│   ├── zhuoh-paper-writing/SKILL.md
+│   └── zhuoh-idea-evaluation/SKILL.md
 └── prompts/
     └── sync.md                   # 已装宿主的后续同步指令
 ```
@@ -92,7 +93,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --verify --t
 - 私有仓库需要登录或 token，无法只靠 URL 一键；建议公开。
 
 ## 作者偏好声明
-`ppt-maker` 的默认交付形态（未明说 .pptx 时默认离线网页并提示可复刻）、文献汇报署名占位（「用户」「导师」）、字体搭配（微软雅黑 + Times New Roman）、正文黑白配色，以及 `paper-writing` 默认参考文献版本策略，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md`；这些选择不构成对其他方案的否定。
+`zhuoh-ppt-maker` 的默认交付形态（未明说 .pptx 时默认离线网页并提示可复刻）、文献汇报署名占位（「用户」「导师」）、字体搭配（微软雅黑 + Times New Roman）、正文黑白配色，以及 `zhuoh-paper-writing` 默认参考文献版本策略，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md`；这些选择不构成对其他方案的否定。
 
 ## 开发与测试
 ```bash

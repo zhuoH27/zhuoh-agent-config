@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""ppt-maker SKILL 中 set_run_fonts 片段的开发期实测。
+"""zhuoh-ppt-maker SKILL 中 set_run_fonts 片段的开发期实测。
 
-片段与 skills/ppt-maker/SKILL.md 保持一致；需要 python-pptx（CI 会安装，
+片段与 skills/zhuoh-ppt-maker/SKILL.md 保持一致；需要 python-pptx（CI 会安装，
 本地缺失则跳过）。验证目标：a:latin/a:ea/a:cs 三属性写入、schema 顺序
 latin→ea→cs、保存重开后持久。
 """
@@ -73,7 +73,7 @@ def test_snippet_matches_skill_doc():
     """片段应与 SKILL.md 中的参考片段一致（防止文档与测试漂移）。"""
     from pathlib import Path
 
-    skill = (Path(__file__).resolve().parent.parent / "skills" / "ppt-maker" / "SKILL.md").read_text(
+    skill = (Path(__file__).resolve().parent.parent / "skills" / "zhuoh-ppt-maker" / "SKILL.md").read_text(
         encoding="utf-8"
     )
     start = skill.index("from pptx.oxml.ns import qn")

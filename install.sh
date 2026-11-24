@@ -5,10 +5,10 @@
 # 写入前先备份；写入走同目录临时文件+原子改名。AGENT_CONFIG_TS 仅供测试固定时间戳。
 # 用法：sh install.sh [--dry-run|--apply|--verify] [--target auto|claude|codex|agents|both] [--mode append|replace|abort] [--home 目录]
 
-VERSION='2.0.0'
+VERSION='2.1.0'
 BEGIN_MARK='<!-- BEGIN: global-iron-rules -->'
 END_MARK='<!-- END: global-iron-rules -->'
-SKILL_NAMES='code-standards ppt-maker paper-writing idea-evaluation'
+SKILL_NAMES='zhuoh-code-standards zhuoh-ppt-maker zhuoh-paper-writing zhuoh-idea-evaluation'
 TS_HINT='YYYYMMDD_HHMMSS'
 REPO=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd) || { printf '%s\n' '无法定位脚本所在目录' >&2; exit 1; }
 WORK=$(mktemp -d) || { printf '%s\n' '无法创建临时目录' >&2; exit 1; }
@@ -231,9 +231,10 @@ plan_skill() { # $1=skill 名；设置 SK_* 全局
 
 overlap_for() {
     case $1 in
-        coding-standards) printf 'code-standards\n' ;;
-        academic-pptx|nature-paper2ppt|scientific-figure-making) printf 'ppt-maker\n' ;;
-        anti-defensive-writing) printf 'paper-writing\n' ;;
+        coding-standards) printf 'zhuoh-code-standards\n' ;;
+        academic-pptx|nature-paper2ppt|scientific-figure-making) printf 'zhuoh-ppt-maker\n' ;;
+        anti-defensive-writing) printf 'zhuoh-paper-writing\n' ;;
+        code-standards|ppt-maker|paper-writing|idea-evaluation) printf 'zhuoh-%s\n' "$1" ;;
         *) return 1 ;;
     esac
 }

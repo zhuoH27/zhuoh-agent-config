@@ -5,17 +5,21 @@
 # 用法：powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 [--dry-run|--apply|--verify]
 #       [--target auto|claude|codex|agents|both] [--mode append|replace|abort] [--home 目录]
 
-$VERSION = '2.0.0'
+$VERSION = '2.1.0'
 $BEGIN_MARK = '<!-- BEGIN: global-iron-rules -->'
 $END_MARK = '<!-- END: global-iron-rules -->'
-$SKILL_NAMES = @('code-standards', 'ppt-maker', 'paper-writing', 'idea-evaluation')
+$SKILL_NAMES = @('zhuoh-code-standards', 'zhuoh-ppt-maker', 'zhuoh-paper-writing', 'zhuoh-idea-evaluation')
 $TS_HINT = 'YYYYMMDD_HHMMSS'
 $KNOWN_OVERLAPS = @{
-    'coding-standards' = 'code-standards'
-    'academic-pptx' = 'ppt-maker'
-    'nature-paper2ppt' = 'ppt-maker'
-    'scientific-figure-making' = 'ppt-maker'
-    'anti-defensive-writing' = 'paper-writing'
+    'coding-standards' = 'zhuoh-code-standards'
+    'academic-pptx' = 'zhuoh-ppt-maker'
+    'nature-paper2ppt' = 'zhuoh-ppt-maker'
+    'scientific-figure-making' = 'zhuoh-ppt-maker'
+    'anti-defensive-writing' = 'zhuoh-paper-writing'
+    'code-standards' = 'zhuoh-code-standards'
+    'ppt-maker' = 'zhuoh-ppt-maker'
+    'paper-writing' = 'zhuoh-paper-writing'
+    'idea-evaluation' = 'zhuoh-idea-evaluation'
 }
 $REPO = $PSScriptRoot
 $ErrorActionPreference = 'Stop'

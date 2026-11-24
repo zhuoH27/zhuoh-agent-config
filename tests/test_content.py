@@ -22,9 +22,9 @@ def test_iron_rule_cross_references():
     """Skill 按编号引用铁律；断言被引用编号对应的标题关键词。"""
     rules = _iron_rules()
     assert sorted(rules) == list(range(1, 11)), "铁律应为 1-10 且无缺号"
-    pw = (REPO / "skills" / "paper-writing" / "SKILL.md").read_text(encoding="utf-8")
+    pw = (REPO / "skills" / "zhuoh-paper-writing" / "SKILL.md").read_text(encoding="utf-8")
     assert "铁律第 3 条" in pw and "事实" in rules[3]
-    pm = (REPO / "skills" / "ppt-maker" / "SKILL.md").read_text(encoding="utf-8")
+    pm = (REPO / "skills" / "zhuoh-ppt-maker" / "SKILL.md").read_text(encoding="utf-8")
     assert "铁律第 2 条" in pm and "可恢复" in rules[2]
 
 
@@ -58,6 +58,21 @@ def test_line_count_within_limit():
         assert lines <= 600, f"{name} 超过 600 行上限: {lines}"
 
 
+def test_skill_names_prefixed():
+    """Skill 目录名与 frontmatter name 必须带 zhuoh- 前缀且一致。"""
+    dirs = sorted(p.name for p in (REPO / "skills").iterdir() if p.is_dir())
+    assert dirs == [
+        "zhuoh-code-standards",
+        "zhuoh-idea-evaluation",
+        "zhuoh-paper-writing",
+        "zhuoh-ppt-maker",
+    ]
+    for d in (REPO / "skills").iterdir():
+        text = (d / "SKILL.md").read_text(encoding="utf-8")
+        m = re.search(r"(?m)^name:\s*(\S+)", text)
+        assert m and m.group(1) == d.name, f"{d.name} 的 frontmatter name 不一致"
+
+
 def test_readme_has_no_hardcoded_version():
     text = (REPO / "README.md").read_text(encoding="utf-8")
     assert "1.1.0" not in text and "1.1.1" not in text, "README 不应写死版本号"
@@ -65,7 +80,7 @@ def test_readme_has_no_hardcoded_version():
 
 
 def test_gbt_2025_default():
-    pw = (REPO / "skills" / "paper-writing" / "SKILL.md").read_text(encoding="utf-8")
+    pw = (REPO / "skills" / "zhuoh-paper-writing" / "SKILL.md").read_text(encoding="utf-8")
     assert "GB/T 7714—2025" in pw
     assert "据称已发布" not in pw, "2025 版发布状态已核实，不应再写据称/未经核实"
 
