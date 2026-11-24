@@ -66,9 +66,9 @@ python scripts/agent_sync.py doctor --target claude
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target claude
 ```
-`-ExecutionPolicy Bypass` 只作用于本次进程，不改系统策略。兜底模式不支持 `--dry-run`、`--verify` 与受管区块合并（规则文件整文件替换），装好后建议补装 Python 并重跑 setup 获得完整保护。
+`-ExecutionPolicy Bypass` 只作用于本次进程，不改系统策略。兜底模式不支持 `--dry-run`、`--verify` 与受管区块合并（规则文件整文件拷贝；默认 `--mode abort` 保护已有文件，显式 `--mode replace` 才覆盖且覆盖前备份），装好后建议补装 Python 并重跑 setup 获得完整保护。
 
-参数：`--target auto|claude|codex|agents|both`（auto 按环境变量 CLAUDECODE/CLAUDE_CODE_ENTRYPOINT/CODEX_THREAD_ID 优先，其次目录探测，双宿主并存报错）；`--mode append|replace|abort`（规则文件合并方式，默认 append）；`--skill-mode copy|link`（Skill 安装方式，默认读取 `manifest.json`）；`--home 目录`（测试沙盒用）；`AGENT_CONFIG_TS` 环境变量固定备份时间戳（测试用）。
+参数：`--target auto|claude|codex|agents|both`（auto 按环境变量 CLAUDECODE/CLAUDE_CODE_ENTRYPOINT/CODEX_THREAD_ID 优先，其次目录探测，双宿主并存报错；both = claude + codex）；`--mode append|replace|abort`（规则文件合并方式，默认 append；无 Python 兜底默认 abort，仅支持 replace/abort）；`--skill-mode copy|link`（Skill 安装方式，默认读取 `manifest.json`）；`--home 目录`（测试沙盒用）；`AGENT_CONFIG_TS` 环境变量固定备份时间戳（测试用）。
 
 ## 规则文件已有内容怎么办
 - **没有受管标记**：默认追加铁律区块到文件末尾，保留原有内容（含末尾空行），先备份。需要整文件替换时用 `--mode replace`；`--mode abort` 直接停止。

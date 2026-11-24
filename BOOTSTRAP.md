@@ -40,7 +40,7 @@ dry-run 出现 `[警告]`（疑似旧版未受管铁律、标记异常）时必�
 ```bash
 python scripts/agent_sync.py setup --target <已确认的 target>
 ```
-无 Python 的 Windows：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target <target>`——入口会自动落到纯拷贝兜底。
+无 Python 的 Windows：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target <target>`——入口会自动落到纯拷贝兜底（默认 `--mode abort` 保护已有规则文件；显式 `--mode replace` 才覆盖，覆盖前备份）。
 - 用户未批准，不执行。
 - 权限或沙箱拒绝时停止并汇报，不要换工具、换路径或放宽沙箱参数。
 - 不修改 `~/.zhuoh-agent-backup/` 里的任何历史备份。

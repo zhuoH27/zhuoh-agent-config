@@ -1,7 +1,7 @@
-# agent-config 极简入口（Windows PowerShell 5.1+ / pwsh 7）。
+﻿# agent-config 极简入口（Windows PowerShell 5.1+ / pwsh 7）。
 # 核心逻辑在 scripts/agent_sync.py（Python 3 标准库）；本文件以 UTF-8 BOM + CRLF 保存（.gitattributes）。
 # 有 Python：透传参数（--verify 映射为 doctor）。
-# 无 Python：裸机兜底，纯拷贝 AGENTS.md、skills/ 与 prompts/ 到宿主（备份后覆盖，不删额外文件）。
+# 无 Python：裸机兜底，纯拷贝规则/skills/prompts 到宿主（默认 abort 保护已有文件；--mode replace 显式覆盖，覆盖前备份；不删额外文件）。
 # 兼容原 v2.2.0 参数：[--dry-run|--apply|--verify] --target auto|claude|codex|agents|both
 #                     --mode append|replace|abort --home 目录 --version
 # 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/。
@@ -43,7 +43,7 @@ Write-Output '未检测到 Python，使用裸机兜底模式（纯拷贝整文�
 $RawArgs = $args
 $target = 'auto'
 $homeArg = $null
-$mode = 'replace'
+    $mode = 'abort'
 $i = 0
 while ($i -lt $RawArgs.Count) {
     switch ($RawArgs[$i]) {
@@ -91,20 +91,30 @@ function Backup-Target([string]$srcFile) {
     return $cand
 }
 
+try {
+    $manifest = Get-Content (Join-Path $Repo 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+} catch {
+    Write-Error "manifest.json 解析失败：$_（兜底模式依赖 manifest.json 定位宿主路径）"
+    exit 1
+}
+if (-not $manifest.hosts) { Write-Error 'manifest.json 缺少 hosts，兜底模式无法定位宿主路径'; exit 1 }
+
 function Copy-Host([string]$key) {
-    $root = Join-Path $realHome ".$key"
-    $rulesName = if ($key -eq 'claude') { 'CLAUDE.md' } else { 'AGENTS.md' }
-    $rules = Join-Path $root $rulesName
-    New-Item -ItemType Directory -Path (Join-Path $root 'skills') -Force | Out-Null
+    $h = $manifest.hosts.$key
+    $hr = [string]$h.root
+    $root = if ($hr.StartsWith('~')) { Join-Path $realHome ($hr -replace '^~[\\/]+', '') } else { $hr }
+    $rules = Join-Path $root ([string]$h.rules_target)
+    $skillsDst = Join-Path $root ([string]$h.skills_dir)
+    New-Item -ItemType Directory -Path $skillsDst -Force | Out-Null
     if (Test-Path $rules) {
-        if ($mode -eq 'abort') { Write-Error "$rules 已存在；按 --mode abort 停止"; exit 1 }
+        if ($mode -eq 'abort') { Write-Error "$rules 已存在；兜底默认 --mode abort 停止（人工合并后重跑，或显式 --mode replace，覆盖前自动备份）"; exit 1 }
         $bak = Backup-Target $rules
         Write-Output "备份: $rules -> $bak"
     }
-    Copy-Item (Join-Path $Repo 'AGENTS.md') $rules -Force
+    Copy-Item (Join-Path $Repo ([string]$manifest.sources.rules)) $rules -Force
     Write-Output "写入: $rules"
-    foreach ($d in Get-ChildItem (Join-Path $Repo 'skills') -Directory) {
-        $dst = Join-Path $root "skills\$($d.Name)"
+    foreach ($d in Get-ChildItem (Join-Path $Repo ([string]$manifest.sources.skills)) -Directory) {
+        $dst = Join-Path $skillsDst $d.Name
         New-Item -ItemType Directory -Path $dst -Force | Out-Null
         foreach ($f in Get-ChildItem $d.FullName -File -Recurse) {
             $rel = $f.FullName.Substring($d.FullName.Length).TrimStart('\', '/')
@@ -116,10 +126,18 @@ function Copy-Host([string]$key) {
         }
         Write-Output "Skill: $dst"
     }
-    if ($key -eq 'codex' -and (Test-Path (Join-Path $Repo 'prompts'))) {
-        $pdir = Join-Path $root 'prompts'
-        New-Item -ItemType Directory -Path $pdir -Force | Out-Null
-        Copy-Item (Join-Path $Repo 'prompts\*.md') $pdir -Force
+    if ($h.prompts_dir) {
+        $pSrc = Join-Path $Repo ([string]$manifest.sources.prompts)
+        if (Test-Path $pSrc) {
+            $pdir = Join-Path $root ([string]$h.prompts_dir)
+            New-Item -ItemType Directory -Path $pdir -Force | Out-Null
+            foreach ($f in Get-ChildItem $pSrc -Filter '*.md' -File) {
+                $tgtFile = Join-Path $pdir $f.Name
+                if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile }
+                Copy-Item $f.FullName $tgtFile -Force
+            }
+            Write-Output "Prompt: $pdir"
+        }
     }
 }
 
