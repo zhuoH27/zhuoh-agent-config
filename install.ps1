@@ -6,7 +6,7 @@
 #           --mode append|replace|abort --home 目录 --version
 # 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/<host>/...。
 
-$VERSION = '3.7.0'
+$VERSION = '3.7.1'
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
 

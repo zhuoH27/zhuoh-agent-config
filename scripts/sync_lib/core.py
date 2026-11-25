@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "3.7.0"
+VERSION = "3.7.1"
 BEGIN_MARK = "<!-- BEGIN: global-iron-rules -->"
 END_MARK = "<!-- END: global-iron-rules -->"
 TS_RE = re.compile(r"^\d{8}_\d{6}$")

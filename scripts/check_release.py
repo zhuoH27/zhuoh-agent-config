@@ -30,7 +30,7 @@ def main():
         print(f"[OK] HEAD tag {tags} 与 VERSION {version} 一致。")
         return
     print(f"[提示] HEAD tag {tags} 与 VERSION {version} 不一致（期望 v{version}）。")
-    print("       若刚提升版本号，请 git tag v{version} 并推送；或检查是否漏改 VERSION。")
+    print(f"       若刚提升版本号，请 git tag v{version} 并推送；或检查是否漏改 VERSION。")
 
 
 if __name__ == "__main__":
