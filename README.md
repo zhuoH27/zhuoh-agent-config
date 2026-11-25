@@ -2,10 +2,10 @@
 把一套全局规则和 4 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
 
 - 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`）、`~/.agents` 约定。
-- **平台：仅 Windows**（PowerShell 5.1+ / pwsh 7 + Python 3）；macOS/Linux 的 sh 入口与对应 CI 已移除，不再维护。
-- **核心是 Python 引擎**：`scripts/agent_sync.py` + `scripts/sync_lib/`（仅 Python 3 标准库）提供 setup / doctor / audit / status 四个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
+- **平台：仅 Windows**（PowerShell 5.1+ / pwsh 7 + Python 3.10+）；macOS/Linux 的 sh 入口与对应 CI 已移除，不再维护。
+- **核心是 Python 引擎**：`scripts/agent_sync.py` + `scripts/sync_lib/`（仅 Python 标准库）提供 setup / doctor / audit / status 四个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
 - 安装产物只有 Markdown：规则文件 + 4 个 `SKILL.md`（含 `references/`）。
-- 自带分层备份、受管区块、dry-run 与校验；支持每次更新时安全覆盖安装；不删除旧 Skill 与用户额外文件，不自动改 `.gitignore`。
+- 自带分层备份、受管区块、dry-run 与校验；setup 前先做 preflight 预检（有任何阻塞项时零写入退出）；不删除旧 Skill 与用户额外文件，不自动改 `.gitignore`。
 
 ## 给 AI 的一键指令
 把下面整段发给新 agent（fork 本仓库的人请把 URL 换成自己的仓库地址）。信任模型提示：一键指令会直接执行线上内容；需要可复现时把 URL 换成 tag 或 commit 的固定版本地址，而不是 `main` 分支：
@@ -59,7 +59,7 @@ zhuoh-agent-config/
 ```
 
 ## 安装与命令速查
-有 Python 3 的 Windows（推荐，全功能）：
+有 Python 3.10+ 的 Windows（推荐，全功能）：
 ```powershell
 python scripts/agent_sync.py setup --dry-run --target auto
 python scripts/agent_sync.py setup --target claude    # 或 codex / both / agents
@@ -90,21 +90,25 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 - 写入前按系统时间戳分层备份到 `~/.zhuoh-agent-backup/<TS>/<host>/<相对目录>/<原名>_<TS>.<ext>.bak`（重名加 `_2`/`_3`）；不覆盖旧备份；技能目录内零 `.bak` 残留。
 - 同名 Skill 仅备份并覆盖仓库包含的文件（`SKILL.md` 与 `references/`），目录内其他文件不动；功能重叠的旧 Skill 只提醒，不删除。
 - 已有文件的换行风格沿用原文件；不整体改写。
-- 不写密钥、令牌或个人信息；本仓库本身不含密钥；`audit` 命令在推送前扫描密钥与硬编码本地路径。
+- 不写密钥、令牌或个人信息；本仓库本身不含密钥；`audit` 命令在推送前扫描密钥与硬编码本地路径（含 fine-grained PAT、UNC 与任意盘符路径；命中误报可用 `audit-allowlist.json` 的 `exact_strings` 精确豁免——只豁免完全一致的字符串，不豁免整行）。
 - 私有仓库需要登录或 token，无法只靠 URL 一键；建议公开。
 - `manifest.json` 的宿主 `root` 须以 `~` 开头或为绝对路径；兜底模式对相对 root 直接报错不写入。
-- **链接（符号链接/junction）**：引擎侧——规则文件是指向仓库源的链接时判“链接健康”跳过，其他链接（含悬空/Python 3.12+ junction）拒绝写入并报错；skills 根、技能目录、技能内中间目录与 prompts 目录是链接（含 Python 3.12+ junction）时跳过并提示人工处理；技能文件是链接时仅当内容有差异才备份后原子替换（替换链接本身，不穿透），内容相同不动，悬空链接按“新增”直接替换。兜底侧更保守——规则文件是任何链接（含 junction/悬空）一律拒绝写入退出；skills 根、技能目录、技能内中间目录、技能与提示词文件、prompts 根是任何链接（含 junction/悬空）一律跳过并提示人工处理。宿主根目录（如 `~/.claude`）本身是链接时两边都会跟随写入。注意：junction 识别依赖 `Path.is_junction`（Python 3.12+）；更低版本（兜底入口支持 3.8+）不识别 junction，会按普通目录**穿透写入**（与旧版行为一致）——建议 Python 3.12+，或勿在宿主 `skills/` 目录使用 junction。
+- **链接（符号链接/junction）**：引擎侧——规则文件是指向仓库源的链接时判“链接健康”跳过，其他链接（含悬空/junction）拒绝写入并报错；skills 根、技能目录、技能内中间目录与 prompts 目录是链接（含 junction）时跳过并提示人工处理；技能文件是链接时仅当内容有差异才备份后原子替换（替换链接本身，不穿透），内容相同不动，悬空链接按“新增”直接替换；prompt 文件是链接时跳过并提示人工处理。兜底侧更保守——规则文件是任何链接（含 junction/悬空）一律拒绝写入退出；skills 根、技能目录、技能内中间目录、技能与提示词文件、prompts 根是任何链接（含 junction/悬空）一律跳过并提示人工处理。宿主根目录（如 `~/.claude`）本身是链接时两边都会跟随写入。junction/symlink 识别在 Python 3.10+ 均生效（引擎自带 3.5+ 的 reparse point 降级链，不依赖 `Path.is_junction`）。
+- **`--skill-mode link` 的生命周期**：link 模式要求仓库目录长期存在；BOOTSTRAP 的“每次换临时目录克隆”流程与 link 模式互斥（临时克隆被清理会导致链接悬空），请改用固定路径克隆。link 模式遇到目标已是链接时按内容三分：指向仓库源跳过；指向旧版且目标可达则重定向到当前源（打印原目标）；指向仓库外且内容与源一致则跳过（可能是其它工具管理的副本，勿删除）；悬空链接自动删除重建。
+- **与其它技能管理工具共存**：若宿主 skills 下的同名技能是指向仓库外（如 `~/.config/<tool>/`）的链接，本引擎一律跳过不写；doctor 会提示“目标是链接（指向仓库外，可能由其它工具管理）”，请人工确认归属，勿直接删除链接。
+- **`--mode replace` 语义**：目标已有受管标记时，replace 与 append 一样只替换 BEGIN..END 区块（区块外内容保留）；整文件替换仅发生在目标无受管标记的场景。
 - **安装器备份与铁律第 2 条**：命名格式与相对路径保留原则一致，但安装器统一备份到 `~/.zhuoh-agent-backup/<TS>/<host>/...`，不用项目内 `_backup/`（后者约束 agent 修改既有文件时的备份行为；安装器写入是计划内批量操作，走统一备份根）。
+- **兜底模式幂等**：install.ps1 兜底分支对内容与源一致的文件（规则/技能/提示词）跳过写入与备份，打印“已最新”；重复运行不再堆积备份。
 
 ## 作者偏好声明
 `zhuoh-ppt-maker` 的默认交付形态、文献汇报署名占位、学术答辩默认双字体与黑白红预设，`zhuoh-paper-writing` 默认参考文献版本策略及审稿 IMRaD 范式/权重/✅⚠️❌ 输出格式，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md` 与 `manifest.json`；这些选择不构成对其他方案的否定。
 
 ## 开发与测试
 ```bash
-python -m pip install pytest
+python -m pip install -r requirements-dev.txt
 python -m pytest tests/ -q
 ```
-测试全部通过 `--home` / `--repo` 指向临时目录运行（含带空格的路径），不触碰真实配置。CI（`.github/workflows/ci.yml`）在 Windows 上跑同一套测试并执行 `audit` 门禁。
+测试全部通过 `--home` / `--repo` 指向临时目录运行（含带空格的路径），不触碰真实配置。CI（`.github/workflows/ci.yml`）在 Windows 上以 Python 3.10–3.13 矩阵跑同一套测试，3.12 档执行 `audit` 门禁与 `check_release.py` 发布一致性提示。
 
 ## 版本
 当前版本见 `scripts/sync_lib/core.py` 头部的 `VERSION` 常量（与 `install.ps1` 保持同步）。发布固定版本：
@@ -112,7 +116,7 @@ python -m pytest tests/ -q
 git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
-tag 与 push 必须使用同一个版本号。
+tag 与 push 必须使用同一个版本号。`scripts/check_release.py` 可随时校验 HEAD tag 与 VERSION 是否同号。**注意：仓库历史上的 v1.x–v2.x 系列标签属旧安装器结构（当时还没有 Python 引擎 `scripts/agent_sync.py`），不可按本文档使用**；固定版本请使用与当前引擎配套的 v3 起的标签。`manifest.json` 的 `schema_version` 是 manifest 结构版本（当前为 1），与引擎 VERSION 是两套体系。
 
 ## 许可
 MIT，见 `LICENSE`。

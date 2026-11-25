@@ -8,6 +8,7 @@ import sys
 from sync_lib.core import (
     BEGIN_MARK,
     END_MARK,
+    BOM,
     VERSION,
     Manifest,
     atomic_write,
@@ -26,6 +27,7 @@ from sync_lib.core import (
     try_link,
     ts_now,
 )
+from sync_lib.preflight import check_or_die
 
 
 def marker_stats(text):
@@ -168,13 +170,23 @@ def _sync_skill_file(src_file, tgt_file, bak_root, host_key, host_root, ts,
                      dry_run, sd_name, rel_str, planned=None):
     is_md = src_file.suffix.lower() == ".md"
     if tgt_file.exists():
+        raw = tgt_file.read_bytes()
         if is_md:
             old, new = read_utf8(tgt_file), read_utf8(src_file)
             if norm_text(old) == norm_text(new):
+                if raw[:3] == BOM:
+                    bak = make_backup(
+                        bak_root, tgt_file, ts,
+                        host_key=host_key, host_root=host_root, dry_run=dry_run,
+                        planned=planned if dry_run else None,
+                    )
+                    if not dry_run:
+                        atomic_write(tgt_file, norm_text(new).replace("\n", detect_eol(old)))
+                    print(f"  Skill {sd_name} ({rel_str}): {'将' if dry_run else ''}仅剥离 BOM（备份 -> {bak}）")
                 return
             payload = norm_text(new).replace("\n", detect_eol(old))
         else:
-            if tgt_file.read_bytes() == src_file.read_bytes():
+            if raw == src_file.read_bytes():
                 return
             payload = src_file.read_bytes()
         bak = make_backup(
@@ -192,6 +204,58 @@ def _sync_skill_file(src_file, tgt_file, bak_root, host_key, host_root, ts,
         print(f"  Skill {sd_name} ({rel_str}): {'将' if dry_run else ''}新增")
 
 
+def _skill_link_target_matches(src_dir, tgt_dir):
+    """链接目标内容与当前源一致（按文件集与字节比较，不比较路径）。"""
+    try:
+        src_files = sorted(p.relative_to(src_dir).as_posix() for p in src_dir.rglob("*") if p.is_file())
+        tgt_files = sorted(p.relative_to(tgt_dir).as_posix() for p in tgt_dir.rglob("*") if p.is_file())
+        if src_files != tgt_files:
+            return False
+        return all((src_dir / rel).read_bytes() == (tgt_dir / rel).read_bytes() for rel in src_files)
+    except OSError:
+        return False
+
+
+def _heal_or_die(sd, tgt_dir, dry_run):
+    """link 模式下处理已存在的目标链接，返回 True=继续链接流程，False=跳过本技能。"""
+    if points_to(tgt_dir, sd):
+        print(f"  Skill {sd.name}: 跳过（链接已指向仓库源）")
+        return False
+    reachable = tgt_dir.is_dir()  # 跟随链接判定可达（比 exists 更严：排除解析差异）
+    if not reachable:
+        # 悬空链接：删除后重建（junction 用 os.rmdir 兜底）
+        if not dry_run:
+            try:
+                tgt_dir.unlink()
+            except OSError:
+                try:
+                    tgt_dir.rmdir()
+                except OSError as e:
+                    die(f"无法移除悬空链接 {tgt_dir}: {e}")
+        verb = "将修复悬空链接"
+        print(f"  Skill {sd.name}: {verb}（原目标已不可达）")
+        return True
+    if _skill_link_target_matches(sd, tgt_dir):
+        print(f"  Skill {sd.name}: 跳过（链接指向仓库外且内容与源一致，可能是其它工具管理的副本）")
+        return False
+    # 内容与源不同：备份链接描述后重定向
+    try:
+        import os as _os
+        target_desc = _os.readlink(tgt_dir)
+    except OSError:
+        target_desc = str(tgt_dir.resolve())
+    print(f"  Skill {sd.name}: 链接指向旧目标（{target_desc}），{'将' if dry_run else ''}重定向 -> {sd}")
+    if not dry_run:
+        try:
+            tgt_dir.unlink()
+        except OSError:
+            try:
+                tgt_dir.rmdir()
+            except OSError as e:
+                die(f"无法移除链接 {tgt_dir}: {e}")
+    return True
+
+
 def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
     hs = mf.skills_dir(key, home)
     if is_link(hs):
@@ -202,6 +266,9 @@ def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
     for sd in skill_dirs(repo, mf.skills_src):
         tgt_dir = hs / sd.name
         if skill_mode == "link":
+            if is_link(tgt_dir):
+                if not _heal_or_die(sd, tgt_dir, dry_run):
+                    continue
             if dry_run:
                 if points_to(tgt_dir, sd):
                     print(f"  Skill {sd.name}: 跳过（链接已指向仓库源）")
@@ -259,7 +326,14 @@ def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
                 continue
         others.sort()
     if others:
-        pairs = [f"{o} ≈ {mf.overlaps[o]}" if o in mf.overlaps else o for o in others]
+        pairs = []
+        for o in others:
+            if o in mf.deprecated:
+                pairs.append(f"{o} [已废弃: {mf.deprecated[o]}]")
+            elif o in mf.overlaps:
+                pairs.append(f"{o} ≈ {mf.overlaps[o]}")
+            else:
+                pairs.append(o)
         print(f"  现有其他 Skill（仅提醒，不删除）: {', '.join(pairs)}")
 
 
@@ -274,6 +348,9 @@ def apply_prompts(mf, key, home, repo, ts, dry_run, planned=None):
     src_dir = repo / mf.prompts_src
     for f in sorted(src_dir.glob("*.md")) if src_dir.is_dir() else []:
         tgt = pd / f.name
+        if is_link(tgt):
+            print(f"  Prompt {f.name}: 目标是链接，跳过（人工处理）")
+            continue
         existed = tgt.exists()
         new_text = norm_text(read_utf8(f))
         if existed:
@@ -300,10 +377,14 @@ def cmd_setup(args, repo):
     targets, label = resolve_targets(args.target, mf, home)
     rules_mode = args.mode or "append"
     skill_mode = args.skill_mode or mf.default_mode
+    check_or_die(mf, targets, home, repo)
     print(
         f"agent-config {VERSION} setup（rules_mode={rules_mode}, skill_mode={skill_mode}）\n"
         f"宿主: {label}\n备份根目录: {mf.backup_root(home)}"
     )
+    if skill_mode == "link":
+        print("[提示] link 模式要求仓库目录长期存在；BOOTSTRAP 的临时克隆流程与 link 模式互斥"
+              "（临时克隆被清理会导致链接悬空；请改用固定路径克隆）。")
     ts = ts_now()
     planned = set() if args.dry_run else None
     if args.dry_run:
@@ -357,6 +438,13 @@ def cmd_doctor(args, repo):
 
         hs = mf.skills_dir(key, home)
         for sd in skill_dirs(repo, mf.skills_src):
+            tp_dir = hs / sd.name
+            if is_link(tp_dir) and not points_to(tp_dir, sd):
+                note = mf.deprecated.get(sd.name, "")
+                deprec = f"；且已废弃（{note}）" if note else ""
+                print(f"[{key}] Skill {sd.name}: 目标是链接（指向仓库外，可能由其它工具管理）——"
+                      f"请人工确认归属，勿直接删除{deprec}")
+                continue
             for sf in sorted(p for p in sd.rglob("*") if p.is_file()):
                 rel = sf.relative_to(sd)
                 tp = hs / sd.name / rel

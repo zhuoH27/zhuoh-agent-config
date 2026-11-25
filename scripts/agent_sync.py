@@ -55,7 +55,11 @@ def main(argv=None):
 
     args = ap.parse_args(argv)
     repo = Path(args.repo).resolve() if getattr(args, "repo", None) else DEFAULT_REPO
-    args.func(args, repo)
+    try:
+        args.func(args, repo)
+    except OSError as e:
+        from sync_lib.core import die
+        die(f"引擎执行失败（{e.__class__.__name__}）: {e}")
 
 
 if __name__ == "__main__":

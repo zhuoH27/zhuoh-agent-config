@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "schema_version": 1,
   "backup_root": "~/.zhuoh-agent-backup",
   "default_mode": "copy",
   "hosts": {
@@ -37,5 +37,9 @@
     "idea-evaluation": "zhuoh-idea-evaluation",
     "paper-review": "zhuoh-paper-writing",
     "zhuoh-paper-review": "zhuoh-paper-writing"
+  },
+  "deprecated_skills": {
+    "zhuoh-config-sync": "3.0 起移除；sync-back 子命令已不存在，建议手动删除",
+    "zhuoh-paper-review": "已并入 zhuoh-paper-writing（references/review-guide.md）"
   }
 }

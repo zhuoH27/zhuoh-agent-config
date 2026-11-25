@@ -1,4 +1,4 @@
-﻿# agent-config 极简入口（Windows PowerShell 5.1+ / pwsh 7）。
+﻿# agent-config 极简入口（Windows PowerShell 5.1+ / pwsh 7 + Python 3.10+）。
 # 核心逻辑在 scripts/agent_sync.py 与 scripts/sync_lib/（Python 3 标准库）；本文件以 UTF-8 BOM + CRLF 保存（.gitattributes）。
 # 有 Python：透传参数（--verify 映射为 doctor）。
 # 无 Python：裸机兜底，纯拷贝规则/skills/prompts 到宿主（默认 abort 保护已有文件；--mode replace 显式覆盖，覆盖前分层备份；不删额外文件）。
@@ -6,7 +6,7 @@
 #           --mode append|replace|abort --home 目录 --version
 # 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/<host>/...。
 
-$VERSION = '3.6.0'
+$VERSION = '3.7.0'
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
 
@@ -138,6 +138,20 @@ try {
     exit 1
 }
 if (-not $manifest.hosts) { Write-Error 'manifest.json 缺少 hosts，兜底模式无法定位宿主路径'; exit 1 }
+if (-not $manifest.sources -or -not $manifest.sources.rules -or -not $manifest.sources.skills) {
+    Write-Error 'manifest.json 缺少 sources（rules/skills），兜底模式无法定位源文件'; exit 1
+}
+
+function Test-SameFile([string]$a, [string]$b) {
+    # 幂等判定：先比大小再比 SHA256，相同则跳过写入与备份
+    try {
+        $fa = Get-Item -LiteralPath $a; $fb = Get-Item -LiteralPath $b
+        if ($fa.Length -ne $fb.Length) { return $false }
+        $ha = (Get-FileHash -LiteralPath $a -Algorithm SHA256).Hash
+        $hb = (Get-FileHash -LiteralPath $b -Algorithm SHA256).Hash
+        return ($ha -eq $hb)
+    } catch { return $false }
+}
 
 function Copy-Host([string]$key) {
     $h = $manifest.hosts.$key
@@ -153,14 +167,23 @@ function Copy-Host([string]$key) {
     $rules = Join-Path $root ([string]$h.rules_target)
     $skillsDst = Join-Path $root ([string]$h.skills_dir)
     if (Test-Link $rules) { Write-Error "$rules 是链接（符号链接/junction/悬空链接），拒绝写入（人工处理）"; exit 1 }
+    $rulesSrc = Join-Path $Repo ([string]$manifest.sources.rules)
     if (Test-Path $rules) {
-        if ($mode -eq 'abort') { Write-Error "$rules 已存在；兜底默认 --mode abort 停止（人工合并后重跑，或显式 --mode replace，覆盖前自动备份）"; exit 1 }
-        $bak = Backup-Target $rules $key $root
-        Write-Output "备份: $rules -> $bak"
+        if (Test-SameFile $rulesSrc $rules) {
+            Write-Output "已最新: $rules"
+        } else {
+            if ($mode -eq 'abort') { Write-Error "$rules 已存在；兜底默认 --mode abort 停止（人工合并后重跑，或显式 --mode replace，覆盖前自动备份）"; exit 1 }
+            $bak = Backup-Target $rules $key $root
+            Write-Output "备份: $rules -> $bak"
+            Copy-Item $rulesSrc $rules -Force
+            Write-Output "写入: $rules"
+        }
+    } else {
+        New-Item -ItemType Directory -Path $root -Force | Out-Null
+        Copy-Item $rulesSrc $rules -Force
+        Write-Output "写入: $rules"
     }
     New-Item -ItemType Directory -Path $root -Force | Out-Null
-    Copy-Item (Join-Path $Repo ([string]$manifest.sources.rules)) $rules -Force
-    Write-Output "写入: $rules"
     if (Test-Link $skillsDst) {
         Write-Output "跳过 skills（$skillsDst 是链接，人工处理）"
     } else {
@@ -183,7 +206,10 @@ function Copy-Host([string]$key) {
                 if (Test-Link $tgtFile) { Write-Output "跳过 $tgtFile（目标是链接，人工处理）"; continue }
                 $tgtParent = Split-Path $tgtFile -Parent
                 if (-not (Test-Path $tgtParent)) { New-Item -ItemType Directory -Path $tgtParent -Force | Out-Null }
-                if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile $key $root }
+                if (Test-Path $tgtFile) {
+                    if (Test-SameFile $f.FullName $tgtFile) { continue }
+                    $null = Backup-Target $tgtFile $key $root
+                }
                 Copy-Item $f.FullName $tgtFile -Force
             }
             Write-Output "Skill: $dst"
@@ -200,7 +226,10 @@ function Copy-Host([string]$key) {
                 foreach ($f in Get-ChildItem $pSrc -Filter '*.md' -File) {
                     $tgtFile = Join-Path $pdir $f.Name
                     if (Test-Link $tgtFile) { Write-Output "跳过 $tgtFile（目标是链接，人工处理）"; continue }
-                    if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile $key $root }
+                    if (Test-Path $tgtFile) {
+                        if (Test-SameFile $f.FullName $tgtFile) { continue }
+                        $null = Backup-Target $tgtFile $key $root
+                    }
                     Copy-Item $f.FullName $tgtFile -Force
                 }
                 Write-Output "Prompt: $pdir"

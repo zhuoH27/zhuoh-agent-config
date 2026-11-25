@@ -19,6 +19,7 @@ AUDIT_TEXT_SUFFIXES = {
 SECRET_PATTERNS = tuple((re.compile(p), n) for p, n in (
     (r"sk-[A-Za-z0-9]{20,}", "OpenAI 风格 API Key"),
     (r"gh[pousr]_[A-Za-z0-9]{30,}", "GitHub Token"),
+    (r"github_pat_[A-Za-z0-9_]{60,}", "GitHub fine-grained PAT"),
     (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
     (r"xox[bapr]-[A-Za-z0-9-]{10,}", "Slack Token"),
     (r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----", "私钥"),
@@ -30,12 +31,28 @@ PATH_PATTERNS = tuple(re.compile(p) for p in (
     r"[A-Za-z]:/Users/",
     r"(?<![\w/])/Users/[A-Za-z0-9_-]+/",
     r"(?<![\w/])/home/[A-Za-z0-9_-]+/",
+    r"\\\\[A-Za-z0-9._$-]+\\[A-Za-z0-9._$-]+(?:\\[A-Za-z0-9._$-]+)*",
+    r"(?<![A-Za-z0-9])[A-Za-z]:[\\/][^\s\"'`|<>*?]{2,}",
 ))
+ALLOWLIST_FILE = "audit-allowlist.json"
+
+
+def _load_allowlist(repo):
+    """精确字符串白名单：只豁免与条目完全一致的命中，不豁免整行。"""
+    try:
+        data = json.loads((Path(repo) / ALLOWLIST_FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    items = data.get("exact_strings", [])
+    if not isinstance(items, list):
+        return set()
+    return {s for s in items if isinstance(s, str)}
 
 
 def audit_repo(repo):
     repo = Path(repo)
     findings = []
+    allowed = _load_allowlist(repo)
     mf_path = repo / "manifest.json"
     skills_rel = "skills"
     if mf_path.is_file():
@@ -64,10 +81,14 @@ def audit_repo(repo):
             findings.append(f"{rel}: 非 UTF-8 文本")
             continue
         for pat, name in SECRET_PATTERNS:
-            findings.extend(f"{rel}: 疑似{name}（{m.group(0)[:24]}…）" for m in pat.finditer(text))
+            for m in pat.finditer(text):
+                if m.group(0) in allowed:
+                    continue
+                findings.append(f"{rel}: 疑似{name}（{m.group(0)[:24]}…）")
         findings.extend(
             f"{rel}: 疑似硬编码本地路径（{m.group(0)}）"
             for pat in PATH_PATTERNS for m in pat.finditer(text)
+            if m.group(0) not in allowed
         )
 
     for sd in skill_dirs(repo, skills_rel):
