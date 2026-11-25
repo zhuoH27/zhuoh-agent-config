@@ -34,10 +34,13 @@ jobs:
               Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value (Get-Content -Raw pytest-output.txt)
               Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
             }
-            # 失败信息提升为公开可见的 annotation（截取关键行）
-            $key = (Select-String -Path pytest-output.txt -Pattern 'FAILED|AssertionError|diag' | Select-Object -First 25)
-            $msg = ($key | ForEach-Object { $_.Line }) -join ' | '
-            if ($msg) { Write-Host "::error::" + $msg.Substring(0, [Math]::Min(600, $msg.Length)) }
+            # 失败信息提升为公开可见的 annotation：每条关键行单独一条，避免单条截断吃掉细节
+            $key = (Select-String -Path pytest-output.txt -Pattern 'FAILED|AssertionError|diag|已最新|写入|备份|未检测到|Skill|跳过|error' | Select-Object -First 40)
+            foreach ($k in $key) {
+              $line = $k.Line
+              if ($line.Length -gt 350) { $line = $line.Substring(0, 350) }
+              Write-Host "::error::$line"
+            }
           }
           exit $code
       - name: Upload pytest output (failure diagnosis)

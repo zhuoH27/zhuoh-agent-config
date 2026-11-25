@@ -110,4 +110,10 @@ def test_fallback_idempotent_no_backup_duplication(tmp_path):
     # 核心不变量：幂等运行不新增备份（"已最新"是路径细节，随环境可能不可达，
     # 如 CI checkout 行尾/哈希差异；有诊断行时把原因带出来）
     baks2 = list((home / ".zhuoh-agent-backup").rglob("*.bak")) if (home / ".zhuoh-agent-backup").exists() else []
-    assert baks2 == baks1, f"幂等运行不应新增备份: {sorted(baks2)} vs {sorted(baks1)}\n输出:\n{out2}"
+    # 失败信息带出证据：分支标记（兜底/引擎）与 [diag] 行放最前（CI annotation 只显示前几百字符）
+    ev = [ln.strip() for ln in out2.splitlines()
+          if any(k in ln for k in ("diag", "未检测到", "已最新", "写入", "备份", "Skill", "完成", "跳过", "error"))]
+    assert baks2 == baks1, (
+        f"幂等运行不应新增备份: n2={len(baks2)} n1={len(baks1)} "
+        f"head=[{out2[:120]}] ev=[{' || '.join(ev[:15])[:450]}]"
+    )

@@ -153,7 +153,7 @@ function Test-SameFile([string]$a, [string]$b) {
         }
         $ha = (Get-FileHash -LiteralPath $a -Algorithm SHA256).Hash
         $hb = (Get-FileHash -LiteralPath $b -Algorithm SHA256).Hash
-        if ($ha -ne $hb) { Write-Host "[diag] Test-SameFile hash differs: $a vs $b" }
+        if ($ha -ne $hb) { Write-Host "[diag] Test-SameFile hash differs: $a($($fa.Length)) vs $b($($fb.Length)) $ha/$hb" }
         return ($ha -eq $hb)
     } catch {
         Write-Host "[diag] Test-SameFile error: $($_.Exception.Message)"
