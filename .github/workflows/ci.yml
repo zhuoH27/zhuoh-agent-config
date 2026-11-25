@@ -26,7 +26,14 @@ jobs:
         shell: pwsh
         run: |
           python -m pytest tests/ -q --tb=long -rA 2>&1 | Tee-Object -FilePath pytest-output.txt
-          exit $LASTEXITCODE
+          $code = $LASTEXITCODE
+          if ($code -ne 0 -and $env:GITHUB_STEP_SUMMARY) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## pytest output ($env:PYTHON_VERSION or matrix)"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value (Get-Content -Raw pytest-output.txt)
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+          }
+          exit $code
       - name: Upload pytest output (failure diagnosis)
         if: failure()
         uses: actions/upload-artifact@v4
