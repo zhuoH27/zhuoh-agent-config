@@ -96,9 +96,12 @@ def test_fallback_idempotent_no_backup_duplication(tmp_path):
 
     def run_fallback(ts):
         env2 = dict(env, AGENT_CONFIG_TS=ts)
+        # 遮蔽 Get-FileHash 模拟 CI 环境（实测该会话中此命令不可解析，曾致 Test-SameFile 全量误判）。
+        # 先触发 Utility 模块自动加载、再在同域覆盖，否则模块导出会反杀遮蔽。
+        prelude = "$null = '{}' | ConvertFrom-Json; function Get-FileHash { throw 'blocked-by-test' }; "
+        call = f"& '{INSTALL}' --target agents --home '{home}' --mode replace; exit $LASTEXITCODE"
         r = subprocess.run([PS, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                            "-File", str(INSTALL), "--target", "agents", "--home", str(home),
-                            "--mode", "replace"],
+                            "-Command", prelude + call],
                            capture_output=True, env=env2, timeout=180, cwd=str(REPO))
         return r.returncode, (r.stdout or b"").decode("utf-8", "replace")
 

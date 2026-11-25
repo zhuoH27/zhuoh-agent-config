@@ -215,6 +215,13 @@ def test_install_ps1_byte_contract():
     assert body.count(b"\r") == body.count(b"\r\n"), "不应有孤立 CR"
 
 
+def test_install_ps1_no_module_autoload_cmdlets():
+    """兜底不得依赖模块自动加载命令：CI 会话实测 Get-FileHash 不可解析，曾致幂等判定全量误判。"""
+    text = INSTALL.read_bytes().decode("utf-8-sig")
+    assert "Get-FileHash" not in text, "install.ps1 不应依赖 Get-FileHash（CI 环境不可解析）"
+    assert "Get-Date" not in text, "install.ps1 不应依赖 Get-Date（同类模块加载风险）"
+
+
 def test_fallback_unknown_arg_rejected(tmp_path):
     """兜底模式遇到未知参数应报错退出，不静默吞掉。"""
     home = make_home(tmp_path)

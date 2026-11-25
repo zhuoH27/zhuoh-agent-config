@@ -91,7 +91,7 @@ $realHome = if ($homeArg) {
     if ($homeArg -eq '~') { $env:USERPROFILE } elseif ($homeArg -match '^~[\\/]') { Join-Path $env:USERPROFILE ($homeArg -replace '^~[\\/]+', '') } else { $homeArg }
 } else { $env:USERPROFILE }
 
-$ts = if ($env:AGENT_CONFIG_TS) { $env:AGENT_CONFIG_TS } else { Get-Date -Format 'yyyyMMdd_HHmmss' }
+$ts = if ($env:AGENT_CONFIG_TS) { $env:AGENT_CONFIG_TS } else { [DateTime]::Now.ToString('yyyyMMdd_HHmmss') }
 $broot = Join-Path $realHome ".zhuoh-agent-backup\$ts"
 $script:BackupUsed = $false
 
@@ -151,10 +151,10 @@ function Test-SameFile([string]$a, [string]$b) {
             Write-Host "[diag] Test-SameFile size differs: $a($($fa.Length)) vs $b($($fb.Length))"
             return $false
         }
-        $ha = (Get-FileHash -LiteralPath $a -Algorithm SHA256).Hash
-        $hb = (Get-FileHash -LiteralPath $b -Algorithm SHA256).Hash
-        if ($ha -ne $hb) { Write-Host "[diag] Test-SameFile hash differs: $a($($fa.Length)) vs $b($($fb.Length)) $ha/$hb" }
-        return ($ha -eq $hb)
+        $ba = [System.IO.File]::ReadAllBytes($fa.FullName)
+        $bb = [System.IO.File]::ReadAllBytes($fb.FullName)
+        if ([Convert]::ToBase64String($ba) -ne [Convert]::ToBase64String($bb)) { Write-Host "[diag] Test-SameFile content differs: $a($($fa.Length)) vs $b($($fb.Length))" ; return $false }
+        return $true
     } catch {
         Write-Host "[diag] Test-SameFile error: $($_.Exception.Message)"
         return $false
