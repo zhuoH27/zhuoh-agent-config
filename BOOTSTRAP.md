@@ -1,6 +1,6 @@
 # BOOTSTRAP：新机首次部署引导
 
-你是被派来把本仓库配置安装到用户宿主的 agent。严格按下面执行，不要即兴发挥。本仓库仅维护 Windows（PowerShell 5.1+ / pwsh 7 + Python 3）；日常维护（已装过本仓库）不走本文件，直接按 `skills/zhuoh-config-sync/SKILL.md` 的闭环执行。
+你是被派来把本仓库配置安装到用户宿主的 agent。严格按下面执行，不要即兴发挥。本仓库仅维护 Windows（PowerShell 5.1+ / pwsh 7 + Python 3）；日常维护（已装过本仓库）不走本文件。
 
 ## 0. 读取顺序与代码审阅
 1. `README.md`

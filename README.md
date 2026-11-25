@@ -1,10 +1,10 @@
 # zhuoh-agent-config
-把一套全局规则和 6 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
+把一套全局规则和 4 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
 
 - 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`）、`~/.agents` 约定。
 - **平台：仅 Windows**（PowerShell 5.1+ / pwsh 7 + Python 3）；macOS/Linux 的 sh 入口与对应 CI 已移除，不再维护。
 - **核心是 Python 引擎**：`scripts/agent_sync.py` + `scripts/sync_lib/`（仅 Python 3 标准库）提供 setup / doctor / audit / status 四个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
-- 安装产物只有 Markdown：规则文件 + 6 个 `SKILL.md`（含 `references/` 与 `zhuoh-config-sync` 自维护技能）。
+- 安装产物只有 Markdown：规则文件 + 4 个 `SKILL.md`（含 `references/`）。
 - 自带分层备份、受管区块、dry-run 与校验；支持每次更新时安全覆盖安装；不删除旧 Skill 与用户额外文件，不自动改 `.gitignore`。
 
 ## 给 AI 的一键指令
@@ -50,12 +50,10 @@ zhuoh-agent-config/
 │   ├── test_install_ps1.py       # install.ps1 兜底路径与字节契约测试
 │   ├── test_content.py           # 内容一致性校验（动态遍历 skills/* 与 scripts/**）
 │   └── test_pptx_font.py         # zhuoh-ppt-maker 字体片段实测（缺 python-pptx 则跳过）
-├── skills/                       # 6 个技能
+├── skills/                       # 4 个技能
 │   ├── zhuoh-code-standards/
-│   ├── zhuoh-config-sync/        # Agent 自维护与同步闭环 SOP
 │   ├── zhuoh-idea-evaluation/
-│   ├── zhuoh-paper-review/
-│   ├── zhuoh-paper-writing/
+│   ├── zhuoh-paper-writing/      # 论文写作、GB/T 7714 引用与审稿评审
 │   └── zhuoh-ppt-maker/
 └── prompts/sync.md               # 已装宿主的同步指令
 ```
@@ -82,9 +80,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 - **标记异常**（数量不对、不独占一行或 END 在 BEGIN 之前）：停止，不自动修，先人工确认。
 - **编码与格式**：非 UTF-8 规则文件报错停止；换行风格沿用原文件；写入 UTF-8 无 BOM，BOM 会在写入时剥离（先备份）。
 
-## 日常维护（一句话）
-对本仓库的 agent 说 **“同步配置”**（或 `/sync`），它会按 `skills/zhuoh-config-sync/SKILL.md` 执行闭环：doctor 体检 → audit 安全门禁 → pytest → 变更摘要 → 你确认后 commit，**push 前必须获你批准**。
-
 ## 更新
 1. 改本仓库里的 `AGENTS.md` 或 `skills/*`，确认后 commit 并 push。
 2. 新 agent 继续用同一个仓库地址，拿到的就是最新版。
@@ -98,11 +93,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 - 不写密钥、令牌或个人信息；本仓库本身不含密钥；`audit` 命令在推送前扫描密钥与硬编码本地路径。
 - 私有仓库需要登录或 token，无法只靠 URL 一键；建议公开。
 - `manifest.json` 的宿主 `root` 须以 `~` 开头或为绝对路径；兜底模式对相对 root 直接报错不写入。
-- **链接（符号链接/junction）**：引擎侧——规则文件是指向仓库源的链接时判“链接健康”跳过，其他符号链接（含悬空）拒绝写入并报错；技能目录是符号链接时跳过该技能（junction 目录会照常写入，穿透到链接位置）；技能文件是链接时仅当内容有差异才备份后原子替换（替换链接本身，不穿透），内容相同不动，悬空链接按“新增”直接替换。兜底侧更保守——规则文件是任何链接（含 junction/悬空）一律拒绝写入退出；skills 根、技能目录、技能内中间目录、技能与提示词文件、prompts 根是任何链接（含 junction/悬空）一律跳过并提示人工处理。宿主根目录（如 `~/.claude`）本身是链接时两边都会跟随写入。
+- **链接（符号链接/junction）**：引擎侧——规则文件是指向仓库源的链接时判“链接健康”跳过，其他链接（含悬空/Python 3.12+ junction）拒绝写入并报错；skills 根、技能目录、技能内中间目录与 prompts 目录是链接（含 Python 3.12+ junction）时跳过并提示人工处理；技能文件是链接时仅当内容有差异才备份后原子替换（替换链接本身，不穿透），内容相同不动，悬空链接按“新增”直接替换。兜底侧更保守——规则文件是任何链接（含 junction/悬空）一律拒绝写入退出；skills 根、技能目录、技能内中间目录、技能与提示词文件、prompts 根是任何链接（含 junction/悬空）一律跳过并提示人工处理。宿主根目录（如 `~/.claude`）本身是链接时两边都会跟随写入。注意：junction 识别依赖 `Path.is_junction`（Python 3.12+）；更低版本（兜底入口支持 3.8+）不识别 junction，会按普通目录**穿透写入**（与旧版行为一致）——建议 Python 3.12+，或勿在宿主 `skills/` 目录使用 junction。
 - **安装器备份与铁律第 2 条**：命名格式与相对路径保留原则一致，但安装器统一备份到 `~/.zhuoh-agent-backup/<TS>/<host>/...`，不用项目内 `_backup/`（后者约束 agent 修改既有文件时的备份行为；安装器写入是计划内批量操作，走统一备份根）。
 
 ## 作者偏好声明
-`zhuoh-ppt-maker` 的默认交付形态、文献汇报署名占位、学术答辩默认双字体与黑白红预设，`zhuoh-paper-writing` 默认参考文献版本策略，`zhuoh-paper-review` 的 IMRaD 默认范式、优先级权重与 ✅/⚠️/❌ 输出格式，以及 `zhuoh-config-sync` 的“复制优先于链接”默认模式，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md` 与 `manifest.json`；这些选择不构成对其他方案的否定。
+`zhuoh-ppt-maker` 的默认交付形态、文献汇报署名占位、学术答辩默认双字体与黑白红预设，`zhuoh-paper-writing` 默认参考文献版本策略及审稿 IMRaD 范式/权重/✅⚠️❌ 输出格式，都是**作者个人偏好**。fork 本仓库请自行修改 `skills/*/SKILL.md` 与 `manifest.json`；这些选择不构成对其他方案的否定。
 
 ## 开发与测试
 ```bash

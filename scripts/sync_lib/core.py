@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "3.4.0"
+VERSION = "3.6.0"
 BEGIN_MARK = "<!-- BEGIN: global-iron-rules -->"
 END_MARK = "<!-- END: global-iron-rules -->"
 TS_RE = re.compile(r"^\d{8}_\d{6}$")
@@ -91,6 +91,20 @@ def atomic_write(path, data):
     os.replace(tmp, p)
 
 
+def is_link(path):
+    """识别符号链接与 Windows NTFS junction（Python 3.12+）。"""
+    p = Path(path)
+    if p.is_symlink():
+        return True
+    fn = getattr(p, "is_junction", None)
+    if fn is not None:
+        try:
+            return bool(fn())
+        except OSError:
+            return False
+    return False
+
+
 def points_to(target, src):
     try:
         return Path(os.path.realpath(target)) == Path(os.path.realpath(src))
@@ -151,6 +165,17 @@ class Manifest:
         self.prompts_src = sources.get("prompts", "prompts")
         if not self.hosts:
             die("manifest hosts 为空")
+        for k, cfg in self.hosts.items():
+            hr = str(cfg.get("root", ""))
+            is_valid_root = (
+                hr == "~"
+                or hr.startswith("~/")
+                or hr.startswith("~\\")
+                or Path(hr).is_absolute()
+                or bool(re.match(r"^[A-Za-z]:[\\/]", hr))
+            )
+            if not is_valid_root:
+                die(f"manifest hosts.{k}.root 必须以 ~ 开头或为绝对路径: {hr}")
 
     def host_root(self, key, home):
         return expand_user(self.hosts[key]["root"], home)
@@ -205,7 +230,7 @@ def skill_dirs(repo, skills_rel="skills"):
 def try_link(src, tgt, is_dir):
     """优先 symlink，Windows 目录降级 junction；失败返回 None。"""
     tgt.parent.mkdir(parents=True, exist_ok=True)
-    if tgt.is_symlink() or (is_dir and tgt.exists() and points_to(tgt, src)):
+    if is_link(tgt) or (is_dir and tgt.exists() and points_to(tgt, src)):
         return tgt if points_to(tgt, src) else None
     if tgt.exists():
         return None

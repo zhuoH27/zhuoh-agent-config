@@ -14,6 +14,7 @@ from sync_lib.core import (
     detect_eol,
     die,
     home_base,
+    is_link,
     make_backup,
     norm_text,
     points_to,
@@ -50,7 +51,7 @@ def plan_rules(mf, key, home, mode, repo, ts, planned=None):
     host_root = mf.host_root(key, home)
     if points_to(tgt, repo / mf.rules_src):
         return "skip", tgt, None, "跳过：链接已指向仓库源"
-    if tgt.is_symlink():
+    if is_link(tgt):
         return "error", tgt, None, "目标是符号链接，拒绝写入（人工处理）"
     if not tgt.exists():
         return "new", tgt, None, "新建"
@@ -151,9 +152,12 @@ def apply_rules(mf, key, home, mode, repo, ts, dry_run, planned=None):
         text = read_utf8(tgt)
         eol = detect_eol(text)
         base = norm_text(text)
-        if base and not base.endswith("\n"):
-            base += "\n"
-        body = (base + "\n" + norm_text(src_block) + "\n").replace("\n", eol)
+        if base:
+            if not base.endswith("\n"):
+                base += "\n"
+            body = (base + "\n" + norm_text(src_block) + "\n").replace("\n", eol)
+        else:
+            body = (norm_text(src_block) + "\n").replace("\n", eol)
         atomic_write(tgt, body)
     else:
         rebuild_rules(tgt, src_block, detect_eol(read_utf8(tgt)))
@@ -190,6 +194,9 @@ def _sync_skill_file(src_file, tgt_file, bak_root, host_key, host_root, ts,
 
 def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
     hs = mf.skills_dir(key, home)
+    if is_link(hs):
+        print(f"  Skills: 根目录是链接（{hs}），跳过（人工处理）")
+        return
     bak_root = mf.backup_root(home)
     host_root = mf.host_root(key, home)
     for sd in skill_dirs(repo, mf.skills_src):
@@ -199,7 +206,7 @@ def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
                 if points_to(tgt_dir, sd):
                     print(f"  Skill {sd.name}: 跳过（链接已指向仓库源）")
                     continue
-                if not tgt_dir.exists() and not tgt_dir.is_symlink():
+                if not tgt_dir.exists() and not is_link(tgt_dir):
                     print(f"  Skill {sd.name}: 将链接 -> {sd}")
                     continue
                 print(f"  Skill {sd.name}: 目标已存在，将降级 Copy Mode")
@@ -209,8 +216,8 @@ def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
                     print(f"  Skill {sd.name}: 链接 -> {sd}")
                     continue
                 print(f"  Skill {sd.name}: 链接失败，降级 Copy Mode")
-        if tgt_dir.is_symlink():
-            print(f"  Skill {sd.name}: 目标已是符号链接，跳过（人工处理）")
+        if is_link(tgt_dir):
+            print(f"  Skill {sd.name}: 目标已是链接，跳过（人工处理）")
             continue
         if not tgt_dir.exists():
             if not dry_run:
@@ -219,6 +226,16 @@ def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
             continue
         for src_file in sorted(p for p in sd.rglob("*") if p.is_file()):
             rel = src_file.relative_to(sd)
+            walk = tgt_dir
+            blocked = False
+            for part in rel.parts[:-1]:
+                walk = walk / part
+                if is_link(walk):
+                    print(f"  Skill {sd.name} ({rel.as_posix()}): 中间目录是链接，跳过（人工处理）")
+                    blocked = True
+                    break
+            if blocked:
+                continue
             _sync_skill_file(
                 src_file, tgt_dir / rel, bak_root, key, host_root, ts,
                 dry_run, sd.name, rel.as_posix(), planned=planned,
@@ -248,9 +265,9 @@ def apply_skills(mf, key, home, skill_mode, repo, ts, dry_run, planned=None):
 
 def apply_prompts(mf, key, home, repo, ts, dry_run, planned=None):
     pd = mf.prompts_dir(key, home)
-    if not pd or key != "codex":
+    if not pd:
         return
-    if pd.is_symlink():
+    if is_link(pd):
         print(f"  Prompt: 目标目录是符号链接，跳过（人工处理）")
         return
     host_root = mf.host_root(key, home)
@@ -355,7 +372,7 @@ def cmd_doctor(args, repo):
                     issues.append(f"[{key}] Skill 与仓库不一致: {sd.name}/{rel.as_posix()}")
 
         pd = mf.prompts_dir(key, home)
-        if pd and key == "codex":
+        if pd:
             src_prompts = repo / mf.prompts_src
             for pf in sorted(src_prompts.glob("*.md")) if src_prompts.is_dir() else []:
                 tp = pd / pf.name
@@ -388,7 +405,7 @@ def cmd_status(args, repo):
             "skills": installed_skills,
         }
         pd = mf.prompts_dir(key, home)
-        if pd and key == "codex":
+        if pd:
             src_prompts = repo / mf.prompts_src
             expected_prompts = [p.name for p in sorted(src_prompts.glob("*.md"))] if src_prompts.is_dir() else []
             host_info["prompts"] = [name for name in expected_prompts if (pd / name).exists()]

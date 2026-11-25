@@ -56,7 +56,7 @@ def test_reversed_markers_rejected(tmp_path):
 
 
 def test_status_reports_installed_skills_only(tmp_path):
-    """空白 home 报 0 个技能，安装 claude 后仅 claude 报满 6 个技能。"""
+    """空白 home 报 0 个技能，安装 claude 后仅 claude 报满全部受管技能。"""
     home = tmp_path / "home dir"
     home.mkdir()
     rc, out = run_engine("status", "--json", "--home", str(home))
@@ -141,3 +141,88 @@ def test_dry_run_backup_collision_preview(tmp_path):
     rc, out = run_engine("setup", "--dry-run", "--target", "claude", "--home", str(home))
     assert rc == 0, out
     assert f"CLAUDE_{TS}_2.md.bak" in out
+
+
+def test_skills_root_symlink_skipped(tmp_path):
+    """~/.claude/skills 根目录为符号链接时跳过全部技能，不穿透外部目录。"""
+    home = tmp_path / "home dir"
+    (home / ".claude").mkdir(parents=True)
+    outside = tmp_path / "outside_skills"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("KEEP", encoding="utf-8")
+    os.symlink(outside, home / ".claude" / "skills", target_is_directory=True)
+    rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
+    assert rc == 0, out
+    assert "根目录是链接" in out
+    assert sorted(p.name for p in outside.iterdir()) == ["keep.txt"]
+
+
+def test_nested_skill_dir_symlink_skipped(tmp_path):
+    """技能内中间目录（references/）为符号链接时跳过该目录下文件，不穿透外部目录。"""
+    home = tmp_path / "home dir"
+    home.mkdir()
+    rc, _ = run_engine("setup", "--target", "claude", "--home", str(home))
+    assert rc == 0
+    ref = home / ".claude" / "skills" / "zhuoh-ppt-maker" / "references"
+    import shutil
+    shutil.rmtree(ref)
+    outside = tmp_path / "outside_refs"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("KEEP", encoding="utf-8")
+    os.symlink(outside, ref, target_is_directory=True)
+    rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
+    assert rc == 0, out
+    assert "中间目录是链接" in out
+    assert sorted(p.name for p in outside.iterdir()) == ["keep.txt"]
+
+
+def test_manifest_relative_root_rejected(tmp_path):
+    """manifest.json 中相对路径 root 必须被引擎拒绝写入。"""
+    import shutil
+    victim = tmp_path / "repo"
+    shutil.copytree(REPO, victim, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"))
+    mf_path = victim / "manifest.json"
+    mf = json.loads(mf_path.read_text(encoding="utf-8"))
+    mf["hosts"]["claude"]["root"] = "relative/claude"
+    mf_path.write_text(json.dumps(mf, ensure_ascii=False, indent=2), encoding="utf-8")
+    home = tmp_path / "home dir"
+    home.mkdir()
+    rc, out = run_engine("setup", "--target", "claude", "--home", str(home), repo=victim)
+    assert rc != 0
+    assert "必须以 ~ 开头或为绝对路径" in out
+
+
+def test_audit_catches_bad_skill_frontmatter(tmp_path):
+    """audit 应拦截缺少首行 --- 或 name 与目录名不一致的 SKILL.md。"""
+    import shutil
+    victim = tmp_path / "repo"
+    shutil.copytree(REPO, victim, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"))
+    bad = victim / "skills" / "zhuoh-code-standards" / "SKILL.md"
+    bad.write_text("name: wrong-name\ndescription: test\n", encoding="utf-8")
+    rc, out = run_engine("audit", repo=victim)
+    assert rc == 2, out
+    assert "首行缺少 frontmatter 起始标记 ---" in out
+    assert "与目录名不一致" in out
+
+
+def test_append_empty_rules_no_leading_blank_line(tmp_path):
+    """0 字节空规则文件 append 后不应多出首行空行。"""
+    home = tmp_path / "home dir"
+    rules = home / ".claude" / "CLAUDE.md"
+    rules.parent.mkdir(parents=True)
+    rules.write_bytes(b"")
+    rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
+    assert rc == 0, out
+    assert rules.read_text(encoding="utf-8").startswith(BEGIN)
+
+
+def test_audit_catches_unclosed_frontmatter(tmp_path):
+    """audit 应拦截缺少闭合 --- 的 SKILL.md frontmatter。"""
+    import shutil
+    victim = tmp_path / "repo"
+    shutil.copytree(REPO, victim, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"))
+    bad = victim / "skills" / "zhuoh-code-standards" / "SKILL.md"
+    bad.write_text("---\nname: zhuoh-code-standards\ndescription: test\n# 正文\n", encoding="utf-8")
+    rc, out = run_engine("audit", repo=victim)
+    assert rc == 2, out
+    assert "缺少闭合标记" in out

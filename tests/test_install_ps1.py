@@ -213,3 +213,46 @@ def test_install_ps1_byte_contract():
     body = data[3:]
     assert body.count(b"\n") == body.count(b"\r\n"), "install.ps1 应全为 CRLF"
     assert body.count(b"\r") == body.count(b"\r\n"), "不应有孤立 CR"
+
+
+def test_fallback_unknown_arg_rejected(tmp_path):
+    """兜底模式遇到未知参数应报错退出，不静默吞掉。"""
+    home = make_home(tmp_path)
+    (home / ".agents").mkdir()
+    rc, out = run_fallback("--target", "agents", "--home", str(home), "--bogus", home=home)
+    assert BANNER in out
+    assert rc != 0
+    assert "未知参数" in out
+
+
+def test_fallback_skill_mode_rejected(tmp_path):
+    """兜底模式不支持 --skill-mode，应明确报错。"""
+    home = make_home(tmp_path)
+    (home / ".agents").mkdir()
+    rc, out = run_fallback("--target", "agents", "--home", str(home), "--skill-mode", "link", home=home)
+    assert BANNER in out
+    assert rc != 0
+    assert "--skill-mode" in out
+
+
+def test_fallback_no_empty_backup_dir_on_fresh_install(tmp_path):
+    """全新安装未覆盖任何文件时，不应产生空的备份目录。"""
+    home = make_home(tmp_path)
+    (home / ".agents").mkdir()
+    rc, out = run_fallback("--target", "agents", "--home", str(home), home=home)
+    assert BANNER in out
+    assert rc == 0
+    assert not (home / ".zhuoh-agent-backup" / TS).exists()
+
+
+def test_fallback_auto_env_claude(tmp_path):
+    """兜底模式 --target auto 应优先识别环境变量 CLAUDECODE。"""
+    home = make_home(tmp_path)
+    (home / ".claude").mkdir()
+    (home / ".codex").mkdir()
+    rc, out = run_fallback("--target", "auto", "--home", str(home),
+                           home=home, env_extra={"CLAUDECODE": "1"})
+    assert BANNER in out
+    assert rc == 0
+    assert (home / ".claude" / "CLAUDE.md").exists()
+    assert not (home / ".codex" / "AGENTS.md").exists()

@@ -35,6 +35,7 @@
     "ppt-maker": "zhuoh-ppt-maker",
     "paper-writing": "zhuoh-paper-writing",
     "idea-evaluation": "zhuoh-idea-evaluation",
-    "paper-review": "zhuoh-paper-review"
+    "paper-review": "zhuoh-paper-writing",
+    "zhuoh-paper-review": "zhuoh-paper-writing"
   }
 }

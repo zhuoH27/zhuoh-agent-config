@@ -76,8 +76,16 @@ def audit_repo(repo):
             findings.append(f"{skills_rel}/{sd.name}/: 缺少 SKILL.md")
             continue
         text = read_utf8(skill)
-        if not re.search(r"(?m)^name:\s*\S+", text):
+        lines = text.splitlines()
+        if not lines or lines[0].strip() != "---":
+            findings.append(f"{skills_rel}/{sd.name}/SKILL.md: 首行缺少 frontmatter 起始标记 ---")
+        elif not any(ln.strip() == "---" for ln in lines[1:]):
+            findings.append(f"{skills_rel}/{sd.name}/SKILL.md: frontmatter 缺少闭合标记 ---")
+        m_name = re.search(r"(?m)^name:\s*(\S+)", text)
+        if not m_name:
             findings.append(f"{skills_rel}/{sd.name}/SKILL.md: 缺 frontmatter name")
+        elif m_name.group(1) != sd.name:
+            findings.append(f"{skills_rel}/{sd.name}/SKILL.md: frontmatter name（{m_name.group(1)}）与目录名不一致")
         if not re.search(r"(?m)^description:\s*\S+", text):
             findings.append(f"{skills_rel}/{sd.name}/SKILL.md: 缺 frontmatter description")
         if len(text.encode("utf-8")) > SKILL_SIZE_WARN:
