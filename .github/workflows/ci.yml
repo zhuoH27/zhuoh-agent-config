@@ -23,7 +23,16 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Run tests
-        run: python -m pytest tests/ -q
+        shell: pwsh
+        run: |
+          python -m pytest tests/ -q --tb=long -rA 2>&1 | Tee-Object -FilePath pytest-output.txt
+          exit $LASTEXITCODE
+      - name: Upload pytest output (failure diagnosis)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-${{ matrix.python-version }}
+          path: pytest-output.txt
       - name: Audit gate (3.12 only)
         if: matrix.python-version == '3.12'
         run: python scripts/agent_sync.py audit
