@@ -27,11 +27,17 @@ jobs:
         run: |
           python -m pytest tests/ -q --tb=long -rA 2>&1 | Tee-Object -FilePath pytest-output.txt
           $code = $LASTEXITCODE
-          if ($code -ne 0 -and $env:GITHUB_STEP_SUMMARY) {
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## pytest output ($env:PYTHON_VERSION or matrix)"
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value (Get-Content -Raw pytest-output.txt)
-            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+          if ($code -ne 0) {
+            if ($env:GITHUB_STEP_SUMMARY) {
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## pytest output"
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value (Get-Content -Raw pytest-output.txt)
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+            }
+            # 失败信息提升为公开可见的 annotation（截取关键行）
+            $key = (Select-String -Path pytest-output.txt -Pattern 'FAILED|AssertionError|diag' | Select-Object -First 25)
+            $msg = ($key | ForEach-Object { $_.Line }) -join ' | '
+            if ($msg) { Write-Host "::error::" + $msg.Substring(0, [Math]::Min(600, $msg.Length)) }
           }
           exit $code
       - name: Upload pytest output (failure diagnosis)
