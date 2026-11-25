@@ -144,13 +144,21 @@ if (-not $manifest.sources -or -not $manifest.sources.rules -or -not $manifest.s
 
 function Test-SameFile([string]$a, [string]$b) {
     # 幂等判定：先比大小再比 SHA256，相同则跳过写入与备份
+    # 诊断输出：比对失败时把差异打到日志，便于 CI 排查
     try {
         $fa = Get-Item -LiteralPath $a; $fb = Get-Item -LiteralPath $b
-        if ($fa.Length -ne $fb.Length) { return $false }
+        if ($fa.Length -ne $fb.Length) {
+            Write-Host "[diag] Test-SameFile size differs: $a($($fa.Length)) vs $b($($fb.Length))"
+            return $false
+        }
         $ha = (Get-FileHash -LiteralPath $a -Algorithm SHA256).Hash
         $hb = (Get-FileHash -LiteralPath $b -Algorithm SHA256).Hash
+        if ($ha -ne $hb) { Write-Host "[diag] Test-SameFile hash differs: $a vs $b" }
         return ($ha -eq $hb)
-    } catch { return $false }
+    } catch {
+        Write-Host "[diag] Test-SameFile error: $($_.Exception.Message)"
+        return $false
+    }
 }
 
 function Copy-Host([string]$key) {
