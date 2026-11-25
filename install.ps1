@@ -1,12 +1,12 @@
 ﻿# agent-config 极简入口（Windows PowerShell 5.1+ / pwsh 7）。
-# 核心逻辑在 scripts/agent_sync.py（Python 3 标准库）；本文件以 UTF-8 BOM + CRLF 保存（.gitattributes）。
+# 核心逻辑在 scripts/agent_sync.py 与 scripts/sync_lib/（Python 3 标准库）；本文件以 UTF-8 BOM + CRLF 保存（.gitattributes）。
 # 有 Python：透传参数（--verify 映射为 doctor）。
-# 无 Python：裸机兜底，纯拷贝规则/skills/prompts 到宿主（默认 abort 保护已有文件；--mode replace 显式覆盖，覆盖前备份；不删额外文件）。
-# 兼容原 v2.2.0 参数：[--dry-run|--apply|--verify] --target auto|claude|codex|agents|both
-#                     --mode append|replace|abort --home 目录 --version
-# 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/。
+# 无 Python：裸机兜底，纯拷贝规则/skills/prompts 到宿主（默认 abort 保护已有文件；--mode replace 显式覆盖，覆盖前分层备份；不删额外文件）。
+# 兼容参数：[--dry-run|--apply|--verify] --target auto|claude|codex|agents|both
+#           --mode append|replace|abort --home 目录 --version
+# 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/<host>/...。
 
-$VERSION = '3.3.0'
+$VERSION = '3.4.0'
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
 
@@ -17,10 +17,26 @@ if ($args.Count -eq 1 -and $args[0] -eq '--version') {
 
 $Repo = $PSScriptRoot
 
-# 定位 Python
-$Py = Get-Command python -ErrorAction SilentlyContinue
-if (-not $Py) { $Py = Get-Command python3 -ErrorAction SilentlyContinue }
-if (-not $Py) { $Py = Get-Command py -ErrorAction SilentlyContinue }
+# 定位可用 Python 3.8+（过滤 Microsoft Store WindowsApps 占位别名）
+$Py = $null
+$PyArgs = @()
+foreach ($cmdName in @('python', 'python3', 'py')) {
+    $candidates = @(Get-Command $cmdName -All -ErrorAction SilentlyContinue)
+    foreach ($cand in $candidates) {
+        if (-not $cand.Source) { continue }
+        if ($cand.Source -match 'WindowsApps\\python3?\.exe$') { continue }
+        $tryArgs = if ($cand.Source -match 'py\.exe$') { @('-3') } else { @() }
+        try {
+            & $cand.Source @tryArgs -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 8) else 1)" *> $null
+            if ($LASTEXITCODE -eq 0) {
+                $Py = $cand
+                $PyArgs = $tryArgs
+                break
+            }
+        } catch {}
+    }
+    if ($Py) { break }
+}
 
 if ($Py) {
     $engine = Join-Path $Repo 'scripts\agent_sync.py'
@@ -32,8 +48,7 @@ if ($Py) {
             default    { $pass += $a }
         }
     }
-    $pyArgs = if ($Py.Source -match 'py\.exe$') { @('-3') } else { @() }
-    & $Py.Source @pyArgs -I $engine $sub @pass
+    & $Py.Source @PyArgs -I $engine $sub @pass
     exit $LASTEXITCODE
 }
 
@@ -43,7 +58,7 @@ Write-Output '未检测到 Python，使用裸机兜底模式（纯拷贝整文�
 $RawArgs = $args
 $target = 'auto'
 $homeArg = $null
-    $mode = 'abort'
+$mode = 'abort'
 $i = 0
 while ($i -lt $RawArgs.Count) {
     switch ($RawArgs[$i]) {
@@ -63,9 +78,11 @@ while ($i -lt $RawArgs.Count) {
                 exit 1
             }
         }
-        '--dry-run' { Write-Error '兜底模式不支持 --dry-run，请安装 Python。'; exit 1 }
-        '--verify'  { Write-Error '兜底模式不支持 --verify，请安装 Python。'; exit 1 }
-        default { }
+        '--apply'      { }
+        '--dry-run'    { Write-Error '兜底模式不支持 --dry-run，请安装 Python。'; exit 1 }
+        '--verify'     { Write-Error '兜底模式不支持 --verify，请安装 Python。'; exit 1 }
+        '--skill-mode' { Write-Error '兜底模式不支持 --skill-mode，请安装 Python。'; exit 1 }
+        default        { Write-Error "兜底模式不支持未知参数：$($RawArgs[$i])"; exit 1 }
     }
     $i++
 }
@@ -76,18 +93,27 @@ $realHome = if ($homeArg) {
 
 $ts = if ($env:AGENT_CONFIG_TS) { $env:AGENT_CONFIG_TS } else { Get-Date -Format 'yyyyMMdd_HHmmss' }
 $broot = Join-Path $realHome ".zhuoh-agent-backup\$ts"
-New-Item -ItemType Directory -Path $broot -Force | Out-Null
+$script:BackupUsed = $false
 
-function Backup-Target([string]$srcFile) {
+function Backup-Target([string]$srcFile, [string]$hostKey, [string]$hostRoot) {
     $stem = [IO.Path]::GetFileNameWithoutExtension($srcFile)
     $ext = [IO.Path]::GetExtension($srcFile)
-    $cand = Join-Path $broot ("{0}_{1}{2}.bak" -f $stem, $ts, $ext)
+    $dstDir = Join-Path $broot $hostKey
+    $fullSrcParent = [IO.Path]::GetFullPath((Split-Path -Parent $srcFile)).TrimEnd('\', '/')
+    $fullHostRoot = [IO.Path]::GetFullPath($hostRoot).TrimEnd('\', '/')
+    if ($fullSrcParent.StartsWith($fullHostRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        $rel = $fullSrcParent.Substring($fullHostRoot.Length).TrimStart('\', '/')
+        if ($rel) { $dstDir = Join-Path $dstDir $rel }
+    }
+    New-Item -ItemType Directory -Path $dstDir -Force | Out-Null
+    $cand = Join-Path $dstDir ("{0}_{1}{2}.bak" -f $stem, $ts, $ext)
     $n = 2
     while (Test-Path $cand) {
-        $cand = Join-Path $broot ("{0}_{1}_{2}{3}.bak" -f $stem, $ts, $n, $ext)
+        $cand = Join-Path $dstDir ("{0}_{1}_{2}{3}.bak" -f $stem, $ts, $n, $ext)
         $n++
     }
     Copy-Item $srcFile $cand
+    $script:BackupUsed = $true
     return $cand
 }
 
@@ -129,9 +155,10 @@ function Copy-Host([string]$key) {
     if (Test-Link $rules) { Write-Error "$rules 是链接（符号链接/junction/悬空链接），拒绝写入（人工处理）"; exit 1 }
     if (Test-Path $rules) {
         if ($mode -eq 'abort') { Write-Error "$rules 已存在；兜底默认 --mode abort 停止（人工合并后重跑，或显式 --mode replace，覆盖前自动备份）"; exit 1 }
-        $bak = Backup-Target $rules
+        $bak = Backup-Target $rules $key $root
         Write-Output "备份: $rules -> $bak"
     }
+    New-Item -ItemType Directory -Path $root -Force | Out-Null
     Copy-Item (Join-Path $Repo ([string]$manifest.sources.rules)) $rules -Force
     Write-Output "写入: $rules"
     if (Test-Link $skillsDst) {
@@ -148,15 +175,15 @@ function Copy-Host([string]$key) {
                 $relParts = $rel -split '[\\/]'
                 $blocked = $false
                 $walk = $dst
-                for ($i = 0; $i -lt $relParts.Count - 1; $i++) {
-                    $walk = Join-Path $walk $relParts[$i]
+                for ($j = 0; $j -lt $relParts.Count - 1; $j++) {
+                    $walk = Join-Path $walk $relParts[$j]
                     if (Test-Link $walk) { Write-Output "跳过 $tgtFile（中间目录 $walk 是链接，人工处理）"; $blocked = $true; break }
                 }
                 if ($blocked) { continue }
                 if (Test-Link $tgtFile) { Write-Output "跳过 $tgtFile（目标是链接，人工处理）"; continue }
                 $tgtParent = Split-Path $tgtFile -Parent
                 if (-not (Test-Path $tgtParent)) { New-Item -ItemType Directory -Path $tgtParent -Force | Out-Null }
-                if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile }
+                if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile $key $root }
                 Copy-Item $f.FullName $tgtFile -Force
             }
             Write-Output "Skill: $dst"
@@ -173,7 +200,7 @@ function Copy-Host([string]$key) {
                 foreach ($f in Get-ChildItem $pSrc -Filter '*.md' -File) {
                     $tgtFile = Join-Path $pdir $f.Name
                     if (Test-Link $tgtFile) { Write-Output "跳过 $tgtFile（目标是链接，人工处理）"; continue }
-                    if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile }
+                    if (Test-Path $tgtFile) { $null = Backup-Target $tgtFile $key $root }
                     Copy-Item $f.FullName $tgtFile -Force
                 }
                 Write-Output "Prompt: $pdir"
@@ -186,16 +213,26 @@ switch ($target) {
     { $_ -in 'claude', 'codex', 'agents' } { $hosts = @($target) }
     'both' { $hosts = @('claude', 'codex') }
     'auto' {
-        $found = @()
-        foreach ($h in @('claude', 'codex', 'agents')) {
-            if (Test-Path (Join-Path $realHome ('.' + $h))) { $found += $h }
+        if ($env:CLAUDECODE -or $env:CLAUDE_CODE_ENTRYPOINT) {
+            $hosts = @('claude')
+        } elseif ($env:CODEX_THREAD_ID) {
+            $hosts = @('codex')
+        } else {
+            $found = @()
+            foreach ($h in @('claude', 'codex', 'agents')) {
+                if (Test-Path (Join-Path $realHome ('.' + $h))) { $found += $h }
+            }
+            if ($found.Count -gt 1) { Write-Error ('检测到多个宿主（{0}），请用 --target 明确指定。' -f ($found -join '、')); exit 1 }
+            if ($found.Count -eq 0) { Write-Error '未检测到 ~/.claude、~/.codex 或 ~/.agents，请用 --target 明确指定。'; exit 1 }
+            $hosts = $found
         }
-        if ($found.Count -gt 1) { Write-Error ('检测到多个宿主（{0}），请用 --target 明确指定。' -f ($found -join '、')); exit 1 }
-        if ($found.Count -eq 0) { Write-Error '未检测到 ~/.claude、~/.codex 或 ~/.agents，请用 --target 明确指定。'; exit 1 }
-        $hosts = $found
     }
     default { Write-Error "未知 --target: $target"; exit 1 }
 }
 
 foreach ($h in $hosts) { Copy-Host $h }
-Write-Output "完成（兜底模式）。备份在 $broot"
+if ($script:BackupUsed) {
+    Write-Output "完成（兜底模式）。备份在 $broot"
+} else {
+    Write-Output '完成（兜底模式）。本次无覆盖文件，未生成备份。'
+}

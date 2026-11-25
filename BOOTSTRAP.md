@@ -5,11 +5,11 @@
 ## 0. 读取顺序与代码审阅
 1. `README.md`
 2. `BOOTSTRAP.md`（本文件）
-3. `scripts/agent_sync.py`（先审阅，见下）
+3. `scripts/agent_sync.py` 与 `scripts/sync_lib/*.py`（先审阅，见下）
 4. `AGENTS.md`
 5. `skills/*/SKILL.md`
 
-先审阅引擎与入口 `install.ps1`：确认它们无网络访问、无 `eval`、不执行任意代码；只读写宿主规则文件、`skills/*/SKILL.md`、`~/.codex/prompts/` 与 `~/.zhuoh-agent-backup/`。发现任何超出此范围的行为，停下汇报，不得执行。
+先审阅引擎（`scripts/agent_sync.py`、`scripts/sync_lib/*.py`）与入口 `install.ps1`：确认它们无网络访问、无 `eval`、不执行任意代码；只读写宿主规则文件、`skills/`、`~/.codex/prompts/` 与 `~/.zhuoh-agent-backup/`。发现任何超出此范围的行为，停下汇报，不得执行。
 
 ## 1. 克隆仓库并记录版本
 ```powershell
@@ -32,7 +32,7 @@ python scripts/agent_sync.py setup --dry-run --target auto
 - 不要跳过 dry-run。
 
 ## 3. 展示计划
-把 dry-run 输出原样给用户，说明：将新建/替换/追加哪个规则文件、将新建或覆盖哪些技能、会产生哪些备份（位于 `~/.zhuoh-agent-backup/<时间戳>/`）。
+把 dry-run 输出原样给用户，说明：将新建/替换/追加哪个规则文件、将新建或覆盖哪些技能、会产生哪些备份（位于 `~/.zhuoh-agent-backup/<时间戳>/<宿主>/...`）。
 明确问：“是否批准 apply（target = X）？”——写出具体 target。
 dry-run 出现 `[警告]`（疑似旧版未受管铁律）时必须停下，逐条向用户说明，由用户决定处理方式（人工合并、`--mode replace` 或放弃），不得自行选择 `--mode`。标记异常不是警告而是硬错误：引擎会直接停止，同权限拒绝一样停下汇报。
 

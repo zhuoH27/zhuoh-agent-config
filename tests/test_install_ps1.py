@@ -99,7 +99,7 @@ def test_fallback_replace_creates_backup(tmp_path):
                            "--mode", "replace", home=home)
     assert BANNER in out
     assert rc == 0
-    bak = home / ".zhuoh-agent-backup" / TS / f"AGENTS_{TS}.md.bak"
+    bak = home / ".zhuoh-agent-backup" / TS / "agents" / f"AGENTS_{TS}.md.bak"
     assert bak.exists()
     assert bak.read_text(encoding="utf-8") == sentinel
     assert "全局核心铁律" in rules.read_text(encoding="utf-8")

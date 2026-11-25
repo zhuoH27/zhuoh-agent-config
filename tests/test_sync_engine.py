@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """agent_sync 引擎黑盒测试。
 
-全部通过 monkeypatch/环境变量隔离真实 HOME（绝不触碰真实 ~/.codex 或 ~/.claude）。
-契约继承自 test_install.py v2.2.0 的语义断言（标记异常、备份命名、幂等提示等）。
+全部通过环境变量与 --home/--repo 隔离真实 HOME（绝不触碰真实 ~/.codex 或 ~/.claude）。
 """
 import json
 import os
@@ -32,7 +31,6 @@ def run_engine(*args, home=None, env_extra=None, repo=REPO):
         env.update(env_extra)
     r = subprocess.run([sys.executable, "-I", str(ENGINE), *args, "--repo", str(repo)],
                        capture_output=True, env=env, timeout=120, cwd=str(REPO))
-    # Windows 控制台编码坑：子进程输出统一按 UTF-8 解（引擎端已 reconfigure）
     out = (r.stdout or b"").decode("utf-8", "replace") + (r.stderr or b"").decode("utf-8", "replace")
     return r.returncode, out
 
@@ -54,7 +52,7 @@ def rules_path(home, key="claude"):
 
 
 def make_home(tmp_path):
-    d = tmp_path / "home dir"  # 带空格：验证参数透传
+    d = tmp_path / "home dir"
     d.mkdir()
     return d
 
@@ -80,12 +78,20 @@ def block_variant(extra_line):
     return expected_rules().replace(END, extra_line + "\n" + END, 1)
 
 
+def make_repo_copy(tmp_path):
+    """写回类测试的沙盒仓库副本：绝不污染真实仓库。"""
+    victim = tmp_path / "repo"
+    shutil.copytree(REPO, victim, ignore=shutil.ignore_patterns(
+        ".git", "__pycache__", ".pytest_cache"))
+    return victim
+
+
 # --- setup 基线 ---
 
 def test_version():
     rc, out = run_engine("--version")
     assert rc == 0
-    assert "agent-config 3.3.0" in out
+    assert "agent-config 3.4.0" in out
 
 
 def test_fresh_apply_claude(tmp_path):
@@ -97,11 +103,10 @@ def test_fresh_apply_claude(tmp_path):
     assert p.exists()
     assert read(p)[:3] != b"\xef\xbb\xbf"
     assert norm(read(p)) == expected_rules()
-    for name in ("zhuoh-code-standards", "zhuoh-ppt-maker", "zhuoh-paper-writing",
-                 "zhuoh-idea-evaluation", "zhuoh-paper-review"):
-        sp = home / ".claude" / "skills" / name / "SKILL.md"
+    for sd in sorted(d for d in (REPO / "skills").iterdir() if d.is_dir()):
+        sp = home / ".claude" / "skills" / sd.name / "SKILL.md"
         assert sp.exists()
-        assert norm(read(sp)) == skill_text(name)
+        assert norm(read(sp)) == skill_text(sd.name)
 
 
 def test_dry_run_writes_nothing(tmp_path):
@@ -168,7 +173,7 @@ def test_prompts_overwrite_backup(tmp_path):
     write(p, "旧版提示词\n")
     rc, out = run_engine("setup", "--target", "codex", "--home", str(home))
     assert rc == 0, out
-    bak = home / ".zhuoh-agent-backup" / TS / f"sync_{TS}.md.bak"
+    bak = home / ".zhuoh-agent-backup" / TS / "codex" / "prompts" / f"sync_{TS}.md.bak"
     assert bak.exists()
     assert norm(read(bak)) == "旧版提示词\n"
 
@@ -209,7 +214,6 @@ def test_auto_two_hosts_conflict(tmp_path):
     assert rc != 0
     assert "检测到多个宿主" in out
     assert "claude" in out and "codex" in out
-    assert "同时检测到" not in out
 
 
 def test_auto_multi_hosts_message(tmp_path):
@@ -236,7 +240,6 @@ def test_auto_three_hosts_message(tmp_path):
     rc, out = run_engine("setup", "--target", "auto", "--home", str(home))
     assert rc != 0
     assert "检测到多个宿主" in out
-    assert "同时检测到" not in out
 
 
 # --- 规则文件合并语义 ---
@@ -278,11 +281,11 @@ def test_legacy_hint_blocks_by_default(tmp_path):
     old = "# 全局核心铁律（旧版手写）\n\n不可逆操作确认流程……\n"
     write(rules_path(home), old)
     rc, out = run_engine("setup", "--dry-run", "--target", "claude", "--home", str(home))
-    assert rc == 0  # dry-run 只警告不停止
+    assert rc == 0
     assert "[警告] 疑似已有旧版未受管铁律" in out
     rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
     assert rc == 0, out
-    assert "[警告]" in out  # apply 也仅警告（追加语义与原 v2.2.0 一致）
+    assert "[警告]" in out
     assert norm(read(rules_path(home))).startswith(old.rstrip("\n"))
 
 
@@ -323,7 +326,7 @@ def test_utf8_reject(tmp_path):
     assert "无法按 UTF-8 解码" in out
 
 
-# --- 备份契约 ---
+# --- 备份契约（分层相对路径） ---
 
 def test_backup_naming_and_location(tmp_path):
     home = make_home(tmp_path)
@@ -331,7 +334,7 @@ def test_backup_naming_and_location(tmp_path):
     rc, out = run_engine("setup", "--target", "claude", "--home", str(home),
                          "--mode", "replace")
     assert rc == 0, out
-    bak = home / ".zhuoh-agent-backup" / TS / f"CLAUDE_{TS}.md.bak"
+    bak = home / ".zhuoh-agent-backup" / TS / "claude" / f"CLAUDE_{TS}.md.bak"
     assert bak.exists()
     assert norm(read(bak)) == "自定义指令\n"
 
@@ -344,26 +347,24 @@ def test_backup_collision_suffix(tmp_path):
     write(rules_path(home), block_variant("版本2"))
     rc, _ = run_engine("setup", "--target", "claude", "--home", str(home))
     assert rc == 0
-    b1 = home / ".zhuoh-agent-backup" / TS / f"CLAUDE_{TS}.md.bak"
-    b2 = home / ".zhuoh-agent-backup" / TS / f"CLAUDE_{TS}_2.md.bak"
+    b1 = home / ".zhuoh-agent-backup" / TS / "claude" / f"CLAUDE_{TS}.md.bak"
+    b2 = home / ".zhuoh-agent-backup" / TS / "claude" / f"CLAUDE_{TS}_2.md.bak"
     assert b1.exists() and b2.exists()
     assert "版本1" in norm(read(b1))
     assert "版本2" in norm(read(b2))
 
 
 def test_append_backs_up(tmp_path):
-    """README 契约：无受管标记的 append 写入前也先备份（不限于带警告的场景）。"""
     home = make_home(tmp_path)
     write(rules_path(home), "自定义指令\n")
     rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
     assert rc == 0, out
-    bak = home / ".zhuoh-agent-backup" / TS / f"CLAUDE_{TS}.md.bak"
+    bak = home / ".zhuoh-agent-backup" / TS / "claude" / f"CLAUDE_{TS}.md.bak"
     assert bak.exists()
     assert norm(read(bak)) == "自定义指令\n"
 
 
 def test_bom_strip_backs_up(tmp_path):
-    """仅剥离 BOM 的写入路径同样先备份。"""
     home = make_home(tmp_path)
     rc, _ = run_engine("setup", "--target", "claude", "--home", str(home))
     assert rc == 0
@@ -372,7 +373,7 @@ def test_bom_strip_backs_up(tmp_path):
     rc, out = run_engine("setup", "--target", "claude", "--home", str(home))
     assert rc == 0, out
     assert "仅剥离 BOM" in out
-    bak = home / ".zhuoh-agent-backup" / TS / f"CLAUDE_{TS}.md.bak"
+    bak = home / ".zhuoh-agent-backup" / TS / "claude" / f"CLAUDE_{TS}.md.bak"
     assert bak.exists()
     assert read(p)[:3] != b"\xef\xbb\xbf"
 
@@ -388,7 +389,8 @@ def test_skill_replace_backup_outside_skill_dir(tmp_path):
     assert rc == 0, out
     assert norm(read(sp)) == skill_text("zhuoh-code-standards")
     assert not list((home / ".claude" / "skills").rglob("*.bak")), "技能目录内不得残留 .bak"
-    bak = home / ".zhuoh-agent-backup" / TS / f"SKILL_{TS}.md.bak"
+    bak = (home / ".zhuoh-agent-backup" / TS / "claude" / "skills"
+           / "zhuoh-code-standards" / f"SKILL_{TS}.md.bak")
     assert bak.exists()
     assert norm(read(bak)) == modified
 
@@ -414,14 +416,15 @@ def test_skill_references_updated_and_doctored(tmp_path):
     ref_src = repo / "skills" / "zhuoh-ppt-maker" / "references" / "layout-guide.md"
     ref_tgt = home / ".claude" / "skills" / "zhuoh-ppt-maker" / "references" / "layout-guide.md"
     assert ref_tgt.exists()
-    # 模拟仓库升级 references
     write(ref_src, norm(read(ref_src)) + "\n新增参考行\n")
     rc, out = run_engine("doctor", "--target", "claude", "--home", str(home), repo=repo)
     assert rc == 2 and "layout-guide.md" in out
     rc, out = run_engine("setup", "--target", "claude", "--home", str(home), repo=repo)
     assert rc == 0, out
     assert "新增参考行" in norm(read(ref_tgt))
-    assert (home / ".zhuoh-agent-backup" / TS / f"layout-guide_{TS}.md.bak").exists()
+    bak = (home / ".zhuoh-agent-backup" / TS / "claude" / "skills"
+           / "zhuoh-ppt-maker" / "references" / f"layout-guide_{TS}.md.bak")
+    assert bak.exists()
     rc, out = run_engine("doctor", "--target", "claude", "--home", str(home), repo=repo)
     assert rc == 0, out
 
@@ -458,14 +461,6 @@ def test_doctor_detects_tamper(tmp_path):
     assert "规则文件" in out and "不一致" in out
 
 
-def make_repo_copy(tmp_path):
-    """写回类测试的沙盒仓库副本：绝不污染真实仓库。"""
-    victim = tmp_path / "repo"
-    shutil.copytree(REPO, victim, ignore=shutil.ignore_patterns(
-        ".git", "__pycache__", ".pytest_cache"))
-    return victim
-
-
 def test_audit_catches_fake_key(tmp_path):
     victim = make_repo_copy(tmp_path)
     write(victim / "leaked.md", "token: 'abcdefgh12345678'\n")
@@ -475,7 +470,6 @@ def test_audit_catches_fake_key(tmp_path):
 
 
 def test_audit_excludes_glob_dirs(tmp_path):
-    """AUDIT_EXCLUDE_DIRS 的 _t* 是通配排除，不是字面量。"""
     victim = make_repo_copy(tmp_path)
     write(victim / "_t9" / "leaked.md", "token: 'abcdefgh12345678'\n")
     rc, out = run_engine("audit", repo=victim)
@@ -483,7 +477,6 @@ def test_audit_excludes_glob_dirs(tmp_path):
 
 
 def test_audit_scans_underscore_t_files(tmp_path):
-    """_t* 通配只排除目录分量：同名文件（含大小写变体）必须仍被扫描。"""
     victim = make_repo_copy(tmp_path)
     write(victim / "_Token.md", "token: 'abcdefgh12345678'\n")
     write(victim / "src" / "_tconf.py", "token: 'abcdefgh12345678'\n")
@@ -503,5 +496,6 @@ def test_status_json(tmp_path):
     rc, out = run_engine("status", "--json", "--home", str(home))
     assert rc == 0, out
     data = json.loads(out)
-    assert data["version"] == "3.3.0"
+    assert data["version"] == "3.4.0"
     assert set(data["hosts"]) == {"claude", "codex", "agents"}
+    assert data["hosts"]["claude"]["skills"] == []

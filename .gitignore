@@ -4,4 +4,3 @@ _backup/
 *.bak
 .pytest_cache/
 _t*/
-.sync-state.json

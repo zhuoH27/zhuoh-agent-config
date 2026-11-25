@@ -45,21 +45,21 @@ def test_annotation_vocabulary_uniform():
 
 def test_installer_version_matches_engine():
     ps1 = (REPO / "install.ps1").read_bytes().decode("utf-8-sig")
-    engine = (REPO / "scripts" / "agent_sync.py").read_text(encoding="utf-8")
+    core = (REPO / "scripts" / "sync_lib" / "core.py").read_text(encoding="utf-8")
     m1 = re.search(r"^\$VERSION = '([^']+)'", ps1, re.M)
-    m2 = re.search(r'^VERSION = "([^"]+)"', engine, re.M)
+    m2 = re.search(r'^VERSION = "([^"]+)"', core, re.M)
     assert m1 and m2 and m1.group(1) == m2.group(1), "入口与引擎 VERSION 应一致"
 
 
 def test_line_count_within_limit():
-    for name in ("scripts/agent_sync.py", "tests/test_sync_engine.py",
-                 "tests/test_content.py", "install.ps1"):
-        path = REPO / name
+    targets = list((REPO / "scripts").rglob("*.py")) + list((REPO / "tests").glob("*.py")) + [REPO / "install.ps1"]
+    for path in targets:
         if not path.exists():
             continue
         text = path.read_bytes().decode("utf-8-sig")
         lines = text.count("\n") + (0 if text.endswith("\n") else 1)
-        assert lines <= 600, f"{name} 超过 600 行上限: {lines}"
+        rel = path.relative_to(REPO).as_posix()
+        assert lines <= 600, f"{rel} 超过 600 行上限: {lines}"
 
 
 def test_skill_main_size_within_limit():
@@ -107,3 +107,8 @@ def test_docs_use_windows_entrypoint():
 
 def test_posix_entrypoint_removed():
     assert not (REPO / "install.sh").exists(), "本仓库仅维护 Windows，POSIX 入口应已移除"
+
+
+def test_install_ps1_windowsapps_regex_escaped():
+    ps1 = (REPO / "install.ps1").read_bytes().decode("utf-8-sig")
+    assert r"WindowsApps\\python3?\.exe$" in ps1, "install.ps1 过滤 WindowsApps 的正则反斜杠转义错误"
