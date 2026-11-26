@@ -26,7 +26,7 @@ description: "编写、修改、重构任意语言源码文件（.py/.ts/.tsx/.j
 
 5. **版本号与时间戳规范**：
    - **版本号沿用项目既有体系**（语义化版本 `x.y.z`、日期代号或时间戳）；工具链自动维护的版本号不手改。新建项目无既定方案时：对外分发/发包默认语义化版本（如 `0.1.0`），内部脚本或临时交付产物可按需使用时间戳。
-   - **产物与备份时间戳**：统一用 `YYYYMMDD_HHMMSS`（本地时间），必须由命令实时生成（Git Bash：`date +%Y%m%d_%H%M%S`；PowerShell：`Get-Date -Format "yyyyMMdd_HHmmss"`；Python：`datetime.now().strftime("%Y%m%d_%H%M%S")`），**严禁凭记忆编造**。备份重名按铁律第 2 条用 `_2`/`_3`，非备份产物同秒碰撞用 `-01`/`-02`；交接小节标题按铁律第 9 条格式。
+   - **产物与备份时间戳**：统一用 `YYYYMMDD_HHMMSS`（本地时间），必须由命令实时生成（Git Bash：`date +%Y%m%d_%H%M%S`；PowerShell：`Get-Date -Format "yyyyMMdd_HHmmss"`；Python：`datetime.now().strftime("%Y%m%d_%H%M%S")`），**严禁凭记忆编造**。备份重名按铁律 iron:recoverable 用 `_2`/`_3`，非备份产物同秒碰撞用 `-01`/`-02`；交接小节标题按铁律 iron:handoff 格式。
 
 ## 二、交付前核对（只查与本次改动直接相关项）
 

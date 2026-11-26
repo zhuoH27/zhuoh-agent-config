@@ -10,22 +10,46 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 
 
-def _iron_rules():
+def _iron_rules_with_anchors():
+    """解析 AGENTS.md：`<!-- iron:xxx -->` 注释行与其后第一条 'N. **标题**' 配对。"""
     text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-    rules = {}
-    for m in re.finditer(r"(?m)^(\d+)\. \*\*(.+?)\*\*", text):
-        rules[int(m.group(1))] = m.group(2)
-    return rules
+    rules, pairs = {}, []
+    pending = None
+    for line in text.splitlines():
+        m = re.match(r"<!--\s*(iron:[a-z0-9-]+)\s*-->", line.strip())
+        if m:
+            pending = m.group(1)
+            continue
+        m = re.match(r"(\d+)\. \*\*(.+?)\*\*", line)
+        if m:
+            num, title = int(m.group(1)), m.group(2)
+            rules[num] = title
+            if pending is not None:
+                pairs.append((pending, num, title))
+                pending = None
+    return rules, pairs
 
 
-def test_iron_rule_cross_references():
-    """Skill 按编号引用铁律；断言被引用编号对应的标题关键词。"""
-    rules = _iron_rules()
+def test_iron_rule_anchors():
+    """铁律条目各带稳定锚点 ID；skill/README 按锚点引用，不再跨文档按编号耦合。
+
+    原防护意图（防止条文修改后引用悄悄失效）改为：锚点存在性 + 被引用锚点的
+    条文标题关键词绑定 + 编号引用残留守卫。AGENTS.md 条内互引仍用编号（受
+    1-10 完整性断言守护）。
+    """
+    rules, pairs = _iron_rules_with_anchors()
     assert sorted(rules) == list(range(1, 11)), "铁律应为 1-10 且无缺号"
-    pw = (REPO / "skills" / "zhuoh-paper-writing" / "SKILL.md").read_text(encoding="utf-8")
-    assert "铁律第 3 条" in pw and "事实" in rules[3]
-    pm = (REPO / "skills" / "zhuoh-ppt-maker" / "SKILL.md").read_text(encoding="utf-8")
-    assert "铁律第 2 条" in pm and "可恢复" in rules[2]
+    ids = [pid for pid, _, _ in pairs]
+    assert len(ids) == 10 and len(set(ids)) == 10, f"应有 10 个唯一 iron: 锚点，实际 {ids}"
+    anchors = {pid: title for pid, _, title in pairs}
+    assert "事实" in anchors["iron:fact-source"], "iron:fact-source 应绑定「事实与数据底线」"
+    assert "可恢复" in anchors["iron:recoverable"], "iron:recoverable 应绑定「修改前可恢复」"
+    scan = list((REPO / "skills").rglob("*.md")) + [REPO / "README.md"]
+    for p in scan:
+        text = p.read_text(encoding="utf-8")
+        for m in re.finditer(r"iron:[a-z0-9-]+", text):
+            assert m.group(0) in anchors, f"{p.name} 引用了未知锚点 {m.group(0)}"
+        assert not re.search(r"铁律第\s*\d+", text), f"{p.name} 仍按编号引用铁律，应改为 iron: 锚点"
 
 
 def test_backup_format_matches_iron_rule_2():
@@ -70,6 +94,20 @@ def test_skill_main_size_within_limit():
         skill = d / "SKILL.md"
         size = skill.stat().st_size
         assert size <= 10 * 1024, f"skills/{d.name}/SKILL.md 超过 10KB（{size}B），请拆层到 references/"
+
+
+def test_idea_eval_main_size():
+    """idea-evaluation 主文件只留决策骨架与红线（目标 5KB，验收线 5.5KB）。"""
+    skill = REPO / "skills" / "zhuoh-idea-evaluation" / "SKILL.md"
+    size = skill.stat().st_size
+    assert size <= 5632, f"idea-evaluation SKILL.md {size}B 超 5.5KB，继续拆层到 references/"
+
+
+def test_paper_writing_main_size():
+    """paper-writing 主文件只留决策骨架与红线（目标 5KB，验收线 5.5KB）。"""
+    skill = REPO / "skills" / "zhuoh-paper-writing" / "SKILL.md"
+    size = skill.stat().st_size
+    assert size <= 5632, f"paper-writing SKILL.md {size}B 超 5.5KB，继续拆层到 references/"
 
 
 def test_skill_names_prefixed():
