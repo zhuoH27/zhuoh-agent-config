@@ -5,6 +5,7 @@
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,14 @@ BEGIN = "<!-- BEGIN: global-iron-rules -->"
 END = "<!-- END: global-iron-rules -->"
 DROP_ENV = {"CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CODEX_THREAD_ID", "CODEX_SANDBOX",
             "AGENT_CONFIG_TS"}
+
+
+def _core_version():
+    """从 core.py 动态读取 VERSION，测试断言一致性而非固化字面量。"""
+    text = (REPO / "scripts" / "sync_lib" / "core.py").read_text(encoding="utf-8")
+    m = re.search(r'^VERSION = "([^"]+)"', text, re.M)
+    assert m, "core.py 缺 VERSION 常量"
+    return m.group(1)
 
 
 def run_engine(*args, home=None, env_extra=None, repo=REPO):
@@ -91,7 +100,7 @@ def make_repo_copy(tmp_path):
 def test_version():
     rc, out = run_engine("--version")
     assert rc == 0
-    assert "agent-config 3.7.1" in out
+    assert f"agent-config {_core_version()}" in out
 
 
 def test_fresh_apply_claude(tmp_path):
@@ -496,6 +505,6 @@ def test_status_json(tmp_path):
     rc, out = run_engine("status", "--json", "--home", str(home))
     assert rc == 0, out
     data = json.loads(out)
-    assert data["version"] == "3.7.1"
+    assert data["version"] == _core_version()
     assert set(data["hosts"]) == {"claude", "codex", "agents"}
     assert data["hosts"]["claude"]["skills"] == []

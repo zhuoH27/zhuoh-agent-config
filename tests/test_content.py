@@ -4,6 +4,7 @@
 --verify 只校验铁律编号是 1-10，校验不到 Skill 按编号引用的条文标题；
 这些断言补上这一层，防止条文修改后编号引用悄悄失效。
 """
+import json
 import re
 from pathlib import Path
 
@@ -75,6 +76,23 @@ def test_installer_version_matches_engine():
     assert m1 and m2 and m1.group(1) == m2.group(1), "入口与引擎 VERSION 应一致"
 
 
+def test_manifest_skill_versions_match():
+    """manifest.json skill_versions 与各 SKILL.md frontmatter metadata.version 对账。
+
+    SKILL.md 是权威源，manifest 为镜像；双写由本测试兜住，覆盖 skills/
+    全部技能目录（新增技能忘登记即失败）。
+    """
+    manifest = json.loads((REPO / "manifest.json").read_text(encoding="utf-8"))
+    versions = manifest.get("skill_versions", {})
+    dirs = sorted(p.name for p in (REPO / "skills").iterdir() if p.is_dir())
+    assert sorted(versions) == dirs, "manifest skill_versions 应覆盖全部技能目录且无多余项"
+    for d in dirs:
+        text = (REPO / "skills" / d / "SKILL.md").read_text(encoding="utf-8")
+        m = re.search(r'(?ms)^metadata:\s*\n\s+version:\s*"([^"]+)"', text)
+        assert m, f"{d} 的 SKILL.md 缺 metadata.version"
+        assert m.group(1) == versions[d], f"{d} 版本不一致：SKILL.md={m.group(1)} manifest={versions[d]}"
+
+
 def test_line_count_within_limit():
     targets = list((REPO / "scripts").rglob("*.py")) + list((REPO / "tests").glob("*.py")) + [REPO / "install.ps1"]
     for path in targets:
@@ -128,11 +146,21 @@ def test_readme_has_no_hardcoded_version():
     assert not re.search(r"(?<!\d)\d+\.\d+\.\d+(?!\d)", text), "README 不应写死任何三段式版本号"
 
 
-def test_gbt_2025_default():
-    pw = (REPO / "skills" / "zhuoh-paper-writing" / "SKILL.md").read_text(encoding="utf-8")
-    assert "GB/T 7714—2025" in pw
-    assert "据称已发布" not in pw, "2025 版发布状态已核实，不应再写据称/未经核实"
-    assert "[DS/OL]" in pw and "[PP/OL]" in pw, "2025 版新增类型应已落地"
+def test_gbt_version_single_sourced():
+    """GB/T 7714 版本信息单点维护于 templates.md；body 只引「最新版」不带年份。
+
+    原 test_gbt_2025_default 的防护意图（默认标准已落地、发布状态已核实、
+    新增类型已落地）改由「templates.md 单点存在 + body 无年份复写 + 禁用
+    对冲话术」承载。
+    """
+    base = REPO / "skills" / "zhuoh-paper-writing"
+    skill = (base / "SKILL.md").read_text(encoding="utf-8")
+    tpl = (base / "references" / "templates.md").read_text(encoding="utf-8")
+    assert "GB/T 7714—2025" in tpl and "2026-07-01" in tpl, "templates.md 应为版本权威单点（版本号+实施日期）"
+    assert "最新版 GB/T 7714" in skill, "body 应按「最新版」引用"
+    assert not re.search(r"7714—20\d\d", skill), "body 不应复写版本年份，版本信息单点在 templates.md"
+    assert "据称已发布" not in skill and "据称已发布" not in tpl, "发布状态已核实，不应再写据称/未经核实"
+    assert "[DS/OL]" in tpl and "[PP/OL]" in tpl, "2025 版新增类型应在 templates.md 落地"
 
 
 def test_docs_use_windows_entrypoint():

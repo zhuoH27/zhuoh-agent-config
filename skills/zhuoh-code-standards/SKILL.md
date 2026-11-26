@@ -1,6 +1,8 @@
 ---
 name: zhuoh-code-standards
 description: "编写、修改、重构任意语言源码文件（.py/.ts/.tsx/.js/.jsx/.vue/.go/.rs/.java/.cpp/.cs/.swift/.kt/.php/.rb/.scala 等）或 HTML 页面、Web UI 组件及前端样式时触发；仅阅读、解释、审查代码而不产出或修改文件时不触发。"
+metadata:
+  version: "1.0.0"
 ---
 
 # 代码与前端工程规范
@@ -10,7 +12,7 @@ description: "编写、修改、重构任意语言源码文件（.py/.ts/.tsx/.j
 1. **模块化与 600 行警戒线**：
    - 新建或整文件重写业务逻辑源码与 UI 组件时，**原则上将单文件控制在 600 行以内**；预估超过时，优先按职责自然拆分为高内聚模块。
    - **严禁为了硬卡 600 行而把代码压缩成难读的单行或强行割裂高内聚逻辑**；若项目测试/CI 设了 600 行硬门禁，则严格遵守。
-   - **豁免范围**：声明式数据与配置（`.json`/`.yaml`/`.sql`）、`.md` 文档、测试 fixture、自动生成代码、迁移文件、第三方 vendored 代码，以及单文件离线交付 HTML（含 `zhuoh-ppt-maker` 离线文献汇报网页与 `AGENTS.md` 零基础可视化讲解 HTML）。
+   - **豁免范围**：声明式数据与配置（`.json`/`.yaml`/`.sql`）、`.md` 文档、测试 fixture、自动生成代码、迁移文件、第三方 vendored 代码，以及单文件离线交付的完整 HTML 页面（含配套本地 `assets/` 资源）。
 
 2. **存量超长文件保护（最小必要改动）**：
    - 局部修改原本已超过 600 行的存量旧文件时，**仅做最小必要改动**，严禁未经用户明确指令全量重写或顺手大规模重构。
@@ -26,7 +28,7 @@ description: "编写、修改、重构任意语言源码文件（.py/.ts/.tsx/.j
 
 5. **版本号与时间戳规范**：
    - **版本号沿用项目既有体系**（语义化版本 `x.y.z`、日期代号或时间戳）；工具链自动维护的版本号不手改。新建项目无既定方案时：对外分发/发包默认语义化版本（如 `0.1.0`），内部脚本或临时交付产物可按需使用时间戳。
-   - **产物与备份时间戳**：统一用 `YYYYMMDD_HHMMSS`（本地时间），必须由命令实时生成（Git Bash：`date +%Y%m%d_%H%M%S`；PowerShell：`Get-Date -Format "yyyyMMdd_HHmmss"`；Python：`datetime.now().strftime("%Y%m%d_%H%M%S")`），**严禁凭记忆编造**。备份重名按铁律 iron:recoverable 用 `_2`/`_3`，非备份产物同秒碰撞用 `-01`/`-02`；交接小节标题按铁律 iron:handoff 格式。
+   - **产物与备份时间戳**：统一用 `YYYYMMDD_HHMMSS`（本地时间），必须由命令实时生成（Git Bash/WSL 用 Linux `date`：`date +%Y%m%d_%H%M%S`；PowerShell：`Get-Date -Format "yyyyMMdd_HHmmss"`；Python：`datetime.now().strftime("%Y%m%d_%H%M%S")`），**严禁凭记忆编造**；cmd.exe 不要拼 `%date%`（格式不可靠），改用 PowerShell 或 Python 一行。跨时区协作可改用 UTC（如 `date -u +%Y%m%d_%H%M%S`），同一任务内格式一致即可。备份重名按铁律 iron:recoverable 用 `_2`/`_3`，非备份产物同秒碰撞用 `-01`/`-02`；交接小节标题按铁律 iron:handoff 格式。
 
 ## 二、交付前核对（只查与本次改动直接相关项）
 

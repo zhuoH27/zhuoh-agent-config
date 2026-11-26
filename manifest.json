@@ -25,6 +25,12 @@
     "skills": "skills",
     "prompts": "prompts"
   },
+  "skill_versions": {
+    "zhuoh-code-standards": "1.0.0",
+    "zhuoh-idea-evaluation": "1.0.0",
+    "zhuoh-paper-writing": "1.0.0",
+    "zhuoh-ppt-maker": "1.0.0"
+  },
   "known_overlaps": {
     "coding-standards": "zhuoh-code-standards",
     "academic-pptx": "zhuoh-ppt-maker",
