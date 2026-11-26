@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "3.8.0"
+VERSION = "3.9.0"
 BEGIN_MARK = "<!-- BEGIN: global-iron-rules -->"
 END_MARK = "<!-- END: global-iron-rules -->"
 TS_RE = re.compile(r"^\d{8}_\d{6}$")
@@ -240,11 +240,12 @@ def resolve_targets(target_arg, mf, home, env=None):
             die(f"检测到多个宿主（{'、'.join(existing)}），无法唯一确定，请用 --target 明确指定。")
         if len(existing) == 1:
             k = existing[0]
-            label = {"claude": "仅存在 ~/.claude", "codex": "仅存在 ~/.codex"}.get(
+            label = {"claude": "仅存在 ~/.claude", "codex": "仅存在 ~/.codex",
+                     "zcode": "仅存在 ~/.zcode"}.get(
                 k, f"仅存在 {mf.hosts[k]['root']}"
             )
             return [k], label
-        die("未检测到 ~/.claude、~/.codex 或 ~/.agents，请用 --target 明确指定（可先创建对应目录）。")
+        die("未检测到 ~/.claude、~/.codex、~/.agents 或 ~/.zcode，请用 --target 明确指定（可先创建对应目录）。")
     if target_arg == "both":
         return ["claude", "codex"], "both"
     if target_arg in known:

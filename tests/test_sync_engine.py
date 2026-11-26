@@ -164,6 +164,17 @@ def test_target_both(tmp_path):
     assert rules_path(home, "codex").exists()
 
 
+def test_target_zcode(tmp_path):
+    """zcode 宿主受管：规则落 ~/.zcode/AGENTS.md，技能落 ~/.zcode/skills。"""
+    home = make_home(tmp_path)
+    rc, out = run_engine("setup", "--target", "zcode", "--home", str(home))
+    assert rc == 0, out
+    p = home / ".zcode" / "AGENTS.md"
+    assert p.exists()
+    assert norm(read(p)) == expected_rules()
+    assert (home / ".zcode" / "skills" / "zhuoh-code-standards" / "SKILL.md").exists()
+
+
 def test_prompts_copied_for_codex(tmp_path):
     home = make_home(tmp_path)
     rc, out = run_engine("setup", "--target", "codex", "--home", str(home))
@@ -215,6 +226,14 @@ def test_auto_single_host_dir(tmp_path):
     assert "仅存在 ~/.codex" in out
 
 
+def test_auto_single_host_zcode(tmp_path):
+    home = make_home(tmp_path)
+    (home / ".zcode").mkdir()
+    rc, out = run_engine("setup", "--dry-run", "--target", "auto", "--home", str(home))
+    assert rc == 0, out
+    assert "仅存在 ~/.zcode" in out
+
+
 def test_auto_two_hosts_conflict(tmp_path):
     home = make_home(tmp_path)
     (home / ".claude").mkdir()
@@ -238,7 +257,7 @@ def test_auto_no_hosts_error(tmp_path):
     home = make_home(tmp_path)
     rc, out = run_engine("setup", "--target", "auto", "--home", str(home))
     assert rc != 0
-    assert "未检测到 ~/.claude、~/.codex 或 ~/.agents" in out
+    assert "未检测到 ~/.claude、~/.codex、~/.agents 或 ~/.zcode" in out
 
 
 def test_auto_three_hosts_message(tmp_path):
@@ -506,5 +525,5 @@ def test_status_json(tmp_path):
     assert rc == 0, out
     data = json.loads(out)
     assert data["version"] == _core_version()
-    assert set(data["hosts"]) == {"claude", "codex", "agents"}
+    assert set(data["hosts"]) == {"claude", "codex", "agents", "zcode"}
     assert data["hosts"]["claude"]["skills"] == []

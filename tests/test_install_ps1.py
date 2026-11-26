@@ -263,3 +263,39 @@ def test_fallback_auto_env_claude(tmp_path):
     assert rc == 0
     assert (home / ".claude" / "CLAUDE.md").exists()
     assert not (home / ".codex" / "AGENTS.md").exists()
+
+
+def test_fallback_auto_zcode_host(tmp_path):
+    """auto 只检测到 ~/.zcode：兜底装到 zcode 宿主（规则 + 技能）。"""
+    home = make_home(tmp_path)
+    (home / ".zcode").mkdir()
+    rc, out = run_fallback("--target", "auto", "--home", str(home), home=home)
+    assert BANNER in out
+    assert rc == 0
+    rules = home / ".zcode" / "AGENTS.md"
+    assert "全局核心铁律" in rules.read_text(encoding="utf-8")
+    assert (home / ".zcode" / "skills" / "zhuoh-code-standards" / "SKILL.md").exists()
+
+
+def test_fallback_explicit_zcode_target(tmp_path):
+    """显式 --target zcode 有效（target 白名单含 zcode，不再报未知参数）。"""
+    home = make_home(tmp_path)
+    (home / ".zcode").mkdir()
+    rc, out = run_fallback("--target", "zcode", "--home", str(home), home=home)
+    assert BANNER in out
+    assert rc == 0
+    assert "全局核心铁律" in (home / ".zcode" / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_fallback_zcode_claude_conflict(tmp_path):
+    """auto 检测到 ~/.zcode 与 ~/.claude 并存：报错且不落任何文件。"""
+    home = make_home(tmp_path)
+    (home / ".zcode").mkdir()
+    (home / ".claude").mkdir()
+    rc, out = run_fallback("--target", "auto", "--home", str(home), home=home)
+    assert BANNER in out
+    assert rc != 0
+    assert "检测到多个宿主" in out
+    assert "zcode" in out and "claude" in out
+    assert not (home / ".zcode" / "AGENTS.md").exists()
+    assert not (home / ".claude" / "CLAUDE.md").exists()

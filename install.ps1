@@ -2,11 +2,11 @@
 # 核心逻辑在 scripts/agent_sync.py 与 scripts/sync_lib/（Python 3 标准库）；本文件以 UTF-8 BOM + CRLF 保存（.gitattributes）。
 # 有 Python：透传参数（--verify 映射为 doctor）。
 # 无 Python：裸机兜底，纯拷贝规则/skills/prompts 到宿主（默认 abort 保护已有文件；--mode replace 显式覆盖，覆盖前分层备份；不删额外文件）。
-# 兼容参数：[--dry-run|--apply|--verify] --target auto|claude|codex|agents|both
+# 兼容参数：[--dry-run|--apply|--verify] --target auto|claude|codex|agents|zcode|both
 #           --mode append|replace|abort --home 目录 --version
 # 安全边界：无网络访问；不执行任意代码；备份统一存 ~/.zhuoh-agent-backup/<TS>/<host>/...。
 
-$VERSION = '3.8.0'
+$VERSION = '3.9.0'
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
 
@@ -247,7 +247,7 @@ function Copy-Host([string]$key) {
 }
 
 switch ($target) {
-    { $_ -in 'claude', 'codex', 'agents' } { $hosts = @($target) }
+    { $_ -in 'claude', 'codex', 'agents', 'zcode' } { $hosts = @($target) }
     'both' { $hosts = @('claude', 'codex') }
     'auto' {
         if ($env:CLAUDECODE -or $env:CLAUDE_CODE_ENTRYPOINT) {
@@ -256,11 +256,11 @@ switch ($target) {
             $hosts = @('codex')
         } else {
             $found = @()
-            foreach ($h in @('claude', 'codex', 'agents')) {
+            foreach ($h in @('claude', 'codex', 'agents', 'zcode')) {
                 if (Test-Path (Join-Path $realHome ('.' + $h))) { $found += $h }
             }
             if ($found.Count -gt 1) { Write-Error ('检测到多个宿主（{0}），请用 --target 明确指定。' -f ($found -join '、')); exit 1 }
-            if ($found.Count -eq 0) { Write-Error '未检测到 ~/.claude、~/.codex 或 ~/.agents，请用 --target 明确指定。'; exit 1 }
+            if ($found.Count -eq 0) { Write-Error '未检测到 ~/.claude、~/.codex、~/.agents 或 ~/.zcode，请用 --target 明确指定。'; exit 1 }
             $hosts = $found
         }
     }

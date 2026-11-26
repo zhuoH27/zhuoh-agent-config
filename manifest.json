@@ -18,6 +18,11 @@
       "root": "~/.agents",
       "rules_target": "AGENTS.md",
       "skills_dir": "skills"
+    },
+    "zcode": {
+      "root": "~/.zcode",
+      "rules_target": "AGENTS.md",
+      "skills_dir": "skills"
     }
   },
   "sources": {

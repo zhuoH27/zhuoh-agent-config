@@ -20,7 +20,7 @@ git clone https://github.com/zhuoH27/zhuoh-agent-config.git agent-config
 Set-Location agent-config
 git rev-parse HEAD   # 记下 commit hash，汇报时附上
 ```
-不能 clone 时，下载 ZIP 并解压，进入含 `scripts/agent_sync.py` 的目录。不要把仓库放进 `~/.claude`、`~/.codex` 或 `~/.agents` 里面。
+不能 clone 时，下载 ZIP 并解压，进入含 `scripts/agent_sync.py` 的目录。不要把仓库放进 `~/.claude`、`~/.codex`、`~/.agents` 或 `~/.zcode` 里面。
 
 ## 2. 检查 Python 并识别宿主
 需要 Windows 与 Python 3.10+（标准库即可）。无 Python 的机器走兜底路径（见第 4 节）。
@@ -28,7 +28,7 @@ git rev-parse HEAD   # 记下 commit hash，汇报时附上
 ```bash
 python scripts/agent_sync.py setup --dry-run --target auto
 ```
-- 输出“检测到多个宿主”时，停下问用户选 `claude`、`codex`、`agents` 还是 `both`（按报错列出的宿主；`both` 恒为 claude + codex），不要替用户选。
+- 输出“检测到多个宿主”时，停下问用户选 `claude`、`codex`、`agents`、`zcode` 还是 `both`（按报错列出的宿主；`both` 恒为 claude + codex），不要替用户选。
 - 环境变量已唯一指向宿主时按输出继续。
 - 不要跳过 dry-run。
 

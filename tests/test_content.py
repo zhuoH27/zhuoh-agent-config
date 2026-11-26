@@ -118,6 +118,15 @@ def test_manifest_skill_versions_match():
         assert m.group(1) == versions[d], f"{d} 版本不一致：SKILL.md={m.group(1)} manifest={versions[d]}"
 
 
+def test_manifest_zcode_host_managed():
+    """zcode 宿主受管：root=~/.zcode、规则 AGENTS.md、技能目录 skills（防宿主清单漏项漂移）。"""
+    hosts = json.loads((REPO / "manifest.json").read_text(encoding="utf-8"))["hosts"]
+    cfg = hosts.get("zcode", {})
+    assert cfg.get("root") == "~/.zcode"
+    assert cfg.get("rules_target") == "AGENTS.md"
+    assert cfg.get("skills_dir") == "skills"
+
+
 def test_line_count_within_limit():
     targets = list((REPO / "scripts").rglob("*.py")) + list((REPO / "tests").glob("*.py")) + [REPO / "install.ps1"]
     for path in targets:

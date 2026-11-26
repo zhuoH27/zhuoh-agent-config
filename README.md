@@ -1,7 +1,7 @@
 # zhuoh-agent-config
 把一套全局规则和 4 个纯文档 Skill 变成可维护、可一键安装的配置仓库。
 
-- 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`）、`~/.agents` 约定。
+- 适用宿主：Claude Code（`~/.claude`）、Codex CLI（`~/.codex`）、`~/.agents` 约定、ZCode CLI（`~/.zcode`）。
 - **平台：仅 Windows**（PowerShell 5.1+ / pwsh 7 + Python 3.10+）；macOS/Linux 的 sh 入口与对应 CI 已移除，不再维护。
 - **核心是 Python 引擎**：`scripts/agent_sync.py` + `scripts/sync_lib/`（仅 Python 标准库）提供 setup / doctor / audit / status 四个子命令；`install.ps1` 是唯一薄入口（无 Python 时退化为纯拷贝兜底）。
 - 安装产物只有 Markdown：规则文件 + 4 个 `SKILL.md`（含 `references/`）。
@@ -15,7 +15,7 @@
 要求：
 1. 先克隆仓库到本地临时目录，不要直接改我的现有配置。
 2. 运行 python scripts/agent_sync.py setup --dry-run --target auto，把将创建/覆盖的文件、备份清单和规则文件处理方式给我确认。
-3. 我明确批准后，再运行同款 setup（去掉 --dry-run）--target <claude|codex|agents|both>。
+3. 我明确批准后，再运行同款 setup（去掉 --dry-run）--target <claude|codex|agents|zcode|both>。
 4. 最后运行 python scripts/agent_sync.py doctor --target <...>，把结果贴给我。
 5. 遇到需要我决策的地方停下；被权限或沙箱拒绝时停止汇报，不要换工具或路径绕过；不要删除旧 Skill 或 ~/.zhuoh-agent-backup 里的备份。
 ```
@@ -62,7 +62,7 @@ zhuoh-agent-config/
 有 Python 3.10+ 的 Windows（推荐，全功能）：
 ```powershell
 python scripts/agent_sync.py setup --dry-run --target auto
-python scripts/agent_sync.py setup --target claude    # 或 codex / both / agents
+python scripts/agent_sync.py setup --target claude    # 或 codex / agents / zcode / both
 python scripts/agent_sync.py doctor --target claude
 ```
 无 Python 的 Windows（兜底，纯拷贝）：
@@ -71,7 +71,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 --target cla
 ```
 `-ExecutionPolicy Bypass` 只作用于本次进程，不改系统策略。兜底模式不支持 `--dry-run`、`--verify` 与受管区块合并（规则文件整文件拷贝；默认 `--mode abort` 保护已有文件，显式 `--mode replace` 才覆盖且覆盖前备份），装好后建议补装 Python 并重跑 setup 获得完整保护。
 
-参数：`--target auto|claude|codex|agents|both`（auto 按环境变量 CLAUDECODE/CLAUDE_CODE_ENTRYPOINT/CODEX_THREAD_ID 优先，其次目录探测，多宿主并存报错；both = claude + codex）；`--mode append|replace|abort`（规则文件合并方式，默认 append；无 Python 兜底默认 abort，仅支持 replace/abort）；`--skill-mode copy|link`（Skill 安装方式，默认读取 `manifest.json`）；`--home 目录`（测试沙盒用）；`AGENT_CONFIG_TS` 环境变量固定备份时间戳（测试用）。
+参数：`--target auto|claude|codex|agents|zcode|both`（auto 按环境变量 CLAUDECODE/CLAUDE_CODE_ENTRYPOINT/CODEX_THREAD_ID 优先，其次目录探测，多宿主并存报错；both = claude + codex）；`--mode append|replace|abort`（规则文件合并方式，默认 append；无 Python 兜底默认 abort，仅支持 replace/abort）；`--skill-mode copy|link`（Skill 安装方式，默认读取 `manifest.json`）；`--home 目录`（测试沙盒用）；`AGENT_CONFIG_TS` 环境变量固定备份时间戳（测试用）。
+
+## 宿主与拓扑
+受管宿主：Claude Code（规则 `~/.claude/CLAUDE.md`）、Codex CLI（规则 `~/.codex/AGENTS.md`，含 `prompts/`）、`~/.agents/AGENTS.md`、ZCode CLI（规则 `~/.zcode/AGENTS.md`），技能均装到各宿主 `skills/` 下。
+
+两种可用拓扑：
+- **单级（引擎 `--skill-mode link`）**：宿主 `skills/` 直连仓库源，要求固定路径克隆长期存在（临时克隆被清理会悬空）。
+- **两级（本机实际采用，magpie-hub）**：仓库以 copy 方式同步到 `~/.config/magpie/library/skills/`（技能实体库），各宿主 `skills/` 下的条目再以符号链接指回该库——升级只需更新库文件，新增 `scripts/`、`references/` 子目录会即时透传到所有宿主。补链接示例（回滚 = 删除链接）：
+```powershell
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.zcode\skills\zhuoh-ppt-maker" -Target "$env:USERPROFILE\.config\magpie\library\skills\zhuoh-ppt-maker"
+```
 
 ## 规则文件已有内容怎么办
 - **没有受管标记**：默认追加铁律区块到文件末尾，保留原有内容（含末尾空行），先备份。需要整文件替换时用 `--mode replace`；`--mode abort` 直接停止。
@@ -122,7 +132,7 @@ tag 与 push 必须使用同一个版本号。`scripts/check_release.py` 可随�
 MIT，见 `LICENSE`。
 
 ## 常见问题
-- **`--target auto` 报“检测到多个宿主”**：按报错列出的宿主用 `--target claude`、`--target codex`、`--target agents` 或 `--target both` 明确指定。环境变量已唯一指向宿主时优先按环境变量判定。
+- **`--target auto` 报“检测到多个宿主”**：按报错列出的宿主用 `--target claude`、`--target codex`、`--target agents`、`--target zcode` 或 `--target both` 明确指定。环境变量已唯一指向宿主时优先按环境变量判定。
 - **写入 `~/.claude` 被权限拒绝**：停止，由用户自己在终端运行安装器，把输出贴回会话。
 - **报“无法按 UTF-8 解码”**：目标文件是 GBK/UTF-16 等编码，先转成 UTF-8 再运行。
 - **新会话看不到 Skill**：确认 `SKILL.md` 第一行是 `---`、`name` 与目录名一致、`description` 是单行；然后重启宿主会话。
