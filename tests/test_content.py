@@ -43,18 +43,43 @@ def test_iron_rule_anchors():
     ids = [pid for pid, _, _ in pairs]
     assert len(ids) == 10 and len(set(ids)) == 10, f"应有 10 个唯一 iron: 锚点，实际 {ids}"
     anchors = {pid: title for pid, _, title in pairs}
-    assert "事实" in anchors["iron:fact-source"], "iron:fact-source 应绑定「事实与数据底线」"
-    assert "可恢复" in anchors["iron:recoverable"], "iron:recoverable 应绑定「修改前可恢复」"
-    scan = list((REPO / "skills").rglob("*.md")) + [REPO / "README.md"]
+    # 10 组锚点全量语义绑定：锚点被换位/错绑即失败，而非只抽查两个
+    expected = {
+        "iron:confirm": "确认",
+        "iron:recoverable": "可恢复",
+        "iron:fact-source": "事实",
+        "iron:verify-first": "验证",
+        "iron:task-grades": "分级",
+        "iron:first-principles": "第一性",
+        "iron:report-four": "汇报",
+        "iron:fuse": "熔断",
+        "iron:handoff": "交接",
+        "iron:priority": "优先级",
+    }
+    assert set(anchors) == set(expected), f"锚点集合不符，应为 {sorted(expected)}"
+    for pid, keyword in expected.items():
+        assert keyword in anchors[pid], f"{pid} 应绑定含「{keyword}」的条文标题，实际「{anchors[pid]}」"
+    scan = list((REPO / "skills").rglob("*.md")) + [REPO / "README.md", REPO / "AGENTS.md"]
     for p in scan:
         text = p.read_text(encoding="utf-8")
         for m in re.finditer(r"iron:[a-z0-9-]+", text):
             assert m.group(0) in anchors, f"{p.name} 引用了未知锚点 {m.group(0)}"
-        assert not re.search(r"铁律第\s*\d+", text), f"{p.name} 仍按编号引用铁律，应改为 iron: 锚点"
+        if p.name != "AGENTS.md":  # AGENTS.md 条内互引按编号属约定豁免
+            assert not re.search(r"铁律第\s*\d+", text), f"{p.name} 仍按编号引用铁律，应改为 iron: 锚点"
+
+
+def test_pptx_skill_references_script():
+    """SKILL.md 应引用 scripts/set_fonts.py 而非内嵌实现（防文档与测试再度漂移）。
+
+    纯文本断言，故不放在 tests/test_pptx_font.py（那边 importorskip pptx 会连坐跳过）。
+    """
+    skill = (REPO / "skills" / "zhuoh-ppt-maker" / "SKILL.md").read_text(encoding="utf-8")
+    assert "scripts/set_fonts.py" in skill
+    assert "def set_run_fonts" not in skill, "SKILL.md 不应内嵌实现，应引用 scripts/set_fonts.py"
 
 
 def test_backup_format_matches_iron_rule_2():
-    """铁律第 2 条写明备份命名格式；安装器的实现必须逐字一致。"""
+    """铁律 iron:recoverable（修改前可恢复）写明备份命名格式；安装器实现必须逐字一致。"""
     text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
     assert "<原名>_YYYYMMDD_HHMMSS.<原扩展名>.bak" in text
     assert "A_20260101_000000_2.md.bak" in text, "重名格式应含具体示例"
@@ -156,11 +181,41 @@ def test_gbt_version_single_sourced():
     base = REPO / "skills" / "zhuoh-paper-writing"
     skill = (base / "SKILL.md").read_text(encoding="utf-8")
     tpl = (base / "references" / "templates.md").read_text(encoding="utf-8")
-    assert "GB/T 7714—2025" in tpl and "2026-07-01" in tpl, "templates.md 应为版本权威单点（版本号+实施日期）"
+    assert "GB/T 7714—2025" in tpl and "2025-12-02" in tpl and "2026-07-01" in tpl, "templates.md 应为版本权威单点（版本号+发布/实施日期）"
     assert "最新版 GB/T 7714" in skill, "body 应按「最新版」引用"
-    assert not re.search(r"7714—20\d\d", skill), "body 不应复写版本年份，版本信息单点在 templates.md"
+    assert not re.search(r"7714[\s—–-]*20\d\d", skill), "body 不应复写版本年份（含 ASCII 连字符/裸年份），版本信息单点在 templates.md"
     assert "据称已发布" not in skill and "据称已发布" not in tpl, "发布状态已核实，不应再写据称/未经核实"
     assert "[DS/OL]" in tpl and "[PP/OL]" in tpl, "2025 版新增类型应在 templates.md 落地"
+
+
+def test_reference_files_exist_and_linked():
+    """细则拆层最低守卫：body 指针 → 文件存在 → 关键节标题在，防止拆层时细则被静默丢弃。"""
+    ie = REPO / "skills" / "zhuoh-idea-evaluation"
+    pw = REPO / "skills" / "zhuoh-paper-writing"
+    ie_body = (ie / "SKILL.md").read_text(encoding="utf-8")
+    pw_body = (pw / "SKILL.md").read_text(encoding="utf-8")
+    assert "references/rubric.md" in ie_body, "idea-eval body 应指向 references/rubric.md"
+    assert "references/templates.md" in pw_body, "paper-writing body 应指向 references/templates.md"
+    assert "references/review-guide.md" in pw_body, "paper-writing body 应指向 references/review-guide.md"
+    rubric = (ie / "references" / "rubric.md").read_text(encoding="utf-8")
+    for title in ("裁决类别判定细则", "置信度细则", "验证清单细则", "角色话术与论点判据"):
+        assert title in rubric, f"rubric.md 缺关键节「{title}」"
+    tpl = (pw / "references" / "templates.md").read_text(encoding="utf-8")
+    for title in ("顺序编码制细则", "七项原则判据细则"):
+        assert title in tpl, f"templates.md 缺关键节「{title}」"
+    review = (pw / "references" / "review-guide.md").read_text(encoding="utf-8")
+    for title in ("逐部分检查标准", "常见失败模式清单"):
+        assert title in review, f"review-guide.md 缺关键节「{title}」"
+
+
+def test_layered_details_survive_extraction():
+    """抽取细则的行为红线与判据要素不得丢失（终审红队 F1-F3 回归防线）。"""
+    rubric = (REPO / "skills" / "zhuoh-idea-evaluation" / "references" / "rubric.md").read_text(encoding="utf-8")
+    for phrase in ("不揣测动机", "修辞偏差", "钱/时间/机会成本", "只看未来追加投入与回报", "点出关键问题"):
+        assert phrase in rubric, f"rubric.md 丢失关键细则「{phrase}」"
+    tpl = (REPO / "skills" / "zhuoh-paper-writing" / "references" / "templates.md").read_text(encoding="utf-8")
+    for phrase in ("标题、摘要、引言、综述、正文、讨论、结论与展望", "因变量居右", "类比/推断/个例"):
+        assert phrase in tpl, f"templates.md 丢失关键细则「{phrase}」"
 
 
 def test_docs_use_windows_entrypoint():

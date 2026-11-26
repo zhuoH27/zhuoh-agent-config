@@ -3,7 +3,8 @@
 
 直接加载 skill 内 scripts/set_fonts.py 的真实实现（单一事实源），验证
 a:latin/a:ea/a:cs 三属性写入、schema 顺序 latin→ea→cs、保存重开后持久。
-需要 python-pptx（CI 会安装，本地缺失则跳过）。
+需要 python-pptx（CI 会安装，本地缺失则跳过）。SKILL.md 引用守卫是纯文本
+断言，放在 tests/test_content.py，不受本文件 pptx 依赖连坐跳过。
 """
 import importlib.util
 from pathlib import Path
@@ -65,10 +66,3 @@ def test_set_run_fonts_survives_save_reload(tmp_path):
     assert rPr2.find(qn("a:latin")).get("typeface") == EN
     assert rPr2.find(qn("a:ea")).get("typeface") == ZH
     assert rPr2.find(qn("a:cs")).get("typeface") == EN
-
-
-def test_skill_doc_references_script():
-    """SKILL.md 应引用 scripts/set_fonts.py 而非内嵌实现（防文档与测试再度漂移）。"""
-    skill = (REPO / "skills" / "zhuoh-ppt-maker" / "SKILL.md").read_text(encoding="utf-8")
-    assert "scripts/set_fonts.py" in skill
-    assert "def set_run_fonts" not in skill, "SKILL.md 不应内嵌实现，应引用 scripts/set_fonts.py"

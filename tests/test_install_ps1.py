@@ -89,7 +89,7 @@ def test_fallback_default_abort_keeps_rules(tmp_path):
 
 
 def test_fallback_replace_creates_backup(tmp_path):
-    """显式 --mode replace：覆盖前备份到 ~/.zhuoh-agent-backup/<TS>/，命名符合铁律第 2 条。"""
+    """显式 --mode replace：覆盖前备份到 ~/.zhuoh-agent-backup/<TS>/，命名符合铁律 iron:recoverable。"""
     home = make_home(tmp_path)
     (home / ".agents").mkdir()
     rules = home / ".agents" / "AGENTS.md"
