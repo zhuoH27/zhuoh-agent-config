@@ -1,6 +1,6 @@
 ---
 name: zhuoh-ppt-maker
-description: "创建、修改、排版 PPT（.pptx）、开题或毕业答辩汇报、学术/商务/科普演示文稿，或基于论文/文献/PDF 制作文献汇报、组会汇报、论文解读及文献分享网页（HTML/SVG）与逐页图片，或用 python-pptx 等代码生成 .pptx 时触发，执行受众与目的先行、内容表达七原则、通用可读性底线与学术答辩默认视觉预设、以及文献汇报专项结构与风格复刻规则；仅泛泛咨询、不产出或修改演示/汇报内容时不触发。"
+description: "创建、修改、排版演示文稿（PPT/.pptx）、开题或毕业答辩汇报、学术/商务/科普演示文稿，或基于论文/文献/PDF 制作文献汇报、组会汇报、论文解读与分享网页（HTML/SVG）及逐页图片、用 python-pptx 等代码生成 .pptx 时触发；视觉排版、演示结构与生成代码归本 skill，文字表达与参考文献归 zhuoh-paper-writing；仅泛泛咨询、不产出或修改演示/汇报内容时不触发。"
 ---
 # 演示文稿与文献汇报规范
 > 核心思想：一切以受众为中心，为受众铺一条从已知通往未知的路。适用学术、商务、科普演示及基于论文/PDF 的组会文献汇报；创意或营销类按场景灵活取舍。
@@ -34,24 +34,7 @@ description: "创建、修改、排版 PPT（.pptx）、开题或毕业答辩汇
 
 ### 2. 学术答辩 `.pptx` 默认预设（无模板且用户未另指定时使用）
 > 商务、科普或现代 HTML 网页汇报在满足通用硬底线前提下，可采用更适合场景的克制现代配色与无衬线/衬线字族，不必僵化套用本预设。
-- **双字体**：中文**微软雅黑（Microsoft YaHei）**，英文及数字 **Times New Roman**（全篇 ≤2 种字体）。用 `python-pptx` 生成时须同时设置 `a:latin`、`a:ea`、`a:cs`（表格、母版与占位符一并检查）。参考片段（与 `tests/test_pptx_font.py` 一致）：
-```python
-from pptx.oxml.ns import qn
-def set_run_fonts(run, zh="Microsoft YaHei", en="Times New Roman"):
-    run.font.name = en  # 写入 a:latin
-    rPr = run._r.get_or_add_rPr()
-    latin = rPr.find(qn("a:latin"))
-    ea = rPr.find(qn("a:ea"))
-    if ea is None:
-        ea = rPr.makeelement(qn("a:ea"), {})
-        latin.addnext(ea)  # 保持 latin→ea→cs 的 schema 顺序
-    ea.set("typeface", zh)
-    cs = rPr.find(qn("a:cs"))
-    if cs is None:
-        cs = rPr.makeelement(qn("a:cs"), {})
-        ea.addnext(cs)
-    cs.set("typeface", en)
-```
+- **双字体**：中文**微软雅黑（Microsoft YaHei）**，英文及数字 **Times New Roman**（全篇 ≤2 种字体）。用 `python-pptx` 生成时须同时设置 `a:latin`、`a:ea`、`a:cs`（`font.name` 只写入 `a:latin`，需补 `a:ea`/`a:cs` 并按 latin→ea→cs 的 schema 顺序插入；表格、母版与占位符一并检查）。参考实现见 `scripts/set_fonts.py`（`set_run_fonts()`，由 `tests/test_pptx_font.py` 实测覆盖）。
 - **极简黑白红配色**：标题栏可用主题色；正文纯黑 `#000000` 或纯白 `#FFFFFF`，辅助元素中性深灰（如 `#666666`），仅局部关键结论用红（如 `#C00000`）高亮。
 - **段落缩进**：仅长段落设首行缩进 2 字符（`marL="0"`，`indent = 字号pt × 2 × 12700`，`buNone`）+ 1.5 倍行距；短要点列表不缩进、左对齐。
 

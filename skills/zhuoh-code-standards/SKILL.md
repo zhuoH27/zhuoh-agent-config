@@ -1,6 +1,6 @@
 ---
 name: zhuoh-code-standards
-description: "编写、修改、重构源码文件（.py/.ts/.tsx/.js/.jsx/.vue/.go/.rs/.java/.cpp 等）、HTML 页面或 Web UI 组件及前端样式时触发，执行单模块 600 行警戒线、存量超长文件最小改动保护、前端样式沿用、界面克制与版本号/时间戳规范；仅阅读、解释、审查代码而不产出或修改文件时不触发。"
+description: "编写、修改、重构任意语言源码文件（.py/.ts/.tsx/.js/.jsx/.vue/.go/.rs/.java/.cpp/.cs/.swift/.kt/.php/.rb/.scala 等）或 HTML 页面、Web UI 组件及前端样式时触发；仅阅读、解释、审查代码而不产出或修改文件时不触发。"
 ---
 
 # 代码与前端工程规范
