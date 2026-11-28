@@ -17,7 +17,7 @@ if ($args.Count -eq 1 -and $args[0] -eq '--version') {
 
 $Repo = $PSScriptRoot
 
-# 定位可用 Python 3.8+（过滤 Microsoft Store WindowsApps 占位别名）
+# 定位可用 Python 3.8+（文档推荐 3.10+，CI 仅验证 3.10–3.13；过滤 Microsoft Store WindowsApps 占位别名）
 $Py = $null
 $PyArgs = @()
 foreach ($cmdName in @('python', 'python3', 'py')) {
@@ -55,6 +55,17 @@ if ($Py) {
 # --- 裸机兜底（无 Python）---
 Write-Output '未检测到 Python，使用裸机兜底模式（纯拷贝整文件覆盖，功能受限）。'
 
+function Write-Fail([string]$Message) {
+    # 直写 stderr（UTF-8 无 BOM）：Write-Error 会按控制台宽度折行并加脚本路径前缀，
+    # 长路径下把宿主名从中间截断（本地长路径复现），既污染输出也破坏测试断言。
+    $enc = New-Object System.Text.UTF8Encoding($false)
+    $writer = New-Object System.IO.StreamWriter([Console]::OpenStandardError(), $enc)
+    $writer.WriteLine($Message)
+    $writer.Flush()
+    $writer.Dispose()
+    exit 1
+}
+
 $RawArgs = $args
 $target = 'auto'
 $homeArg = $null
@@ -63,26 +74,25 @@ $i = 0
 while ($i -lt $RawArgs.Count) {
     switch ($RawArgs[$i]) {
         '--target' {
-            if ($i + 1 -ge $RawArgs.Count) { Write-Error '--target 缺少参数值'; exit 1 }
+            if ($i + 1 -ge $RawArgs.Count) { Write-Fail '--target 缺少参数值' }
             $i++; $target = [string]$RawArgs[$i]
         }
         '--home' {
-            if ($i + 1 -ge $RawArgs.Count) { Write-Error '--home 缺少参数值'; exit 1 }
+            if ($i + 1 -ge $RawArgs.Count) { Write-Fail '--home 缺少参数值' }
             $i++; $homeArg = [string]$RawArgs[$i]
         }
         '--mode' {
-            if ($i + 1 -ge $RawArgs.Count) { Write-Error '--mode 缺少参数值'; exit 1 }
+            if ($i + 1 -ge $RawArgs.Count) { Write-Fail '--mode 缺少参数值' }
             $i++; $mode = [string]$RawArgs[$i]
             if ($mode -notin @('replace', 'abort')) {
-                Write-Error "兜底模式不支持 --mode $mode（仅支持 replace 或 abort），请安装 Python。"
-                exit 1
+                Write-Fail "兜底模式不支持 --mode $mode（仅支持 replace 或 abort），请安装 Python。"
             }
         }
         '--apply'      { }
-        '--dry-run'    { Write-Error '兜底模式不支持 --dry-run，请安装 Python。'; exit 1 }
-        '--verify'     { Write-Error '兜底模式不支持 --verify，请安装 Python。'; exit 1 }
-        '--skill-mode' { Write-Error '兜底模式不支持 --skill-mode，请安装 Python。'; exit 1 }
-        default        { Write-Error "兜底模式不支持未知参数：$($RawArgs[$i])"; exit 1 }
+        '--dry-run'    { Write-Fail '兜底模式不支持 --dry-run，请安装 Python。' }
+        '--verify'     { Write-Fail '兜底模式不支持 --verify，请安装 Python。' }
+        '--skill-mode' { Write-Fail '兜底模式不支持 --skill-mode，请安装 Python。' }
+        default        { Write-Fail "兜底模式不支持未知参数：$($RawArgs[$i])" }
     }
     $i++
 }
@@ -134,12 +144,11 @@ function Test-Link([string]$p) {
 try {
     $manifest = Get-Content (Join-Path $Repo 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 } catch {
-    Write-Error "manifest.json 解析失败：$_（兜底模式依赖 manifest.json 定位宿主路径）"
-    exit 1
+    Write-Fail "manifest.json 解析失败：$_（兜底模式依赖 manifest.json 定位宿主路径）"
 }
-if (-not $manifest.hosts) { Write-Error 'manifest.json 缺少 hosts，兜底模式无法定位宿主路径'; exit 1 }
+if (-not $manifest.hosts) { Write-Fail 'manifest.json 缺少 hosts，兜底模式无法定位宿主路径' }
 if (-not $manifest.sources -or -not $manifest.sources.rules -or -not $manifest.sources.skills) {
-    Write-Error 'manifest.json 缺少 sources（rules/skills），兜底模式无法定位源文件'; exit 1
+    Write-Fail 'manifest.json 缺少 sources（rules/skills），兜底模式无法定位源文件'
 }
 
 function Test-SameFile([string]$a, [string]$b) {
@@ -164,23 +173,22 @@ function Test-SameFile([string]$a, [string]$b) {
 function Copy-Host([string]$key) {
     $h = $manifest.hosts.$key
     if (-not $h -or -not $h.root -or -not $h.rules_target -or -not $h.skills_dir) {
-        Write-Error "manifest hosts.$key 缺少必需字段（root/rules_target/skills_dir）"
-        exit 1
+        Write-Fail "manifest hosts.$key 缺少必需字段（root/rules_target/skills_dir）"
     }
     $hr = [string]$h.root
     if ($hr -eq '~') { $root = $realHome }
     elseif ($hr.StartsWith('~')) { $root = Join-Path $realHome ($hr -replace '^~[\\/]+', '') }
     elseif ([IO.Path]::IsPathRooted($hr)) { $root = $hr }
-    else { Write-Error "manifest root 必须以 ~ 开头或为绝对路径: $hr"; exit 1 }
+    else { Write-Fail "manifest root 必须以 ~ 开头或为绝对路径: $hr" }
     $rules = Join-Path $root ([string]$h.rules_target)
     $skillsDst = Join-Path $root ([string]$h.skills_dir)
-    if (Test-Link $rules) { Write-Error "$rules 是链接（符号链接/junction/悬空链接），拒绝写入（人工处理）"; exit 1 }
+    if (Test-Link $rules) { Write-Fail "$rules 是链接（符号链接/junction/悬空链接），拒绝写入（人工处理）" }
     $rulesSrc = Join-Path $Repo ([string]$manifest.sources.rules)
     if (Test-Path $rules) {
         if (Test-SameFile $rulesSrc $rules) {
             Write-Output "已最新: $rules"
         } else {
-            if ($mode -eq 'abort') { Write-Error "$rules 已存在；兜底默认 --mode abort 停止（人工合并后重跑，或显式 --mode replace，覆盖前自动备份）"; exit 1 }
+            if ($mode -eq 'abort') { Write-Fail "$rules 已存在；兜底默认 --mode abort 停止（人工合并后重跑，或显式 --mode replace，覆盖前自动备份）" }
             $bak = Backup-Target $rules $key $root
             Write-Output "备份: $rules -> $bak"
             Copy-Item $rulesSrc $rules -Force
@@ -259,12 +267,12 @@ switch ($target) {
             foreach ($h in @('claude', 'codex', 'agents', 'zcode')) {
                 if (Test-Path (Join-Path $realHome ('.' + $h))) { $found += $h }
             }
-            if ($found.Count -gt 1) { Write-Error ('检测到多个宿主（{0}），请用 --target 明确指定。' -f ($found -join '、')); exit 1 }
-            if ($found.Count -eq 0) { Write-Error '未检测到 ~/.claude、~/.codex、~/.agents 或 ~/.zcode，请用 --target 明确指定。'; exit 1 }
+            if ($found.Count -gt 1) { Write-Fail ('检测到多个宿主（{0}），请用 --target 明确指定。' -f ($found -join '、')) }
+            if ($found.Count -eq 0) { Write-Fail '未检测到 ~/.claude、~/.codex、~/.agents 或 ~/.zcode，请用 --target 明确指定。' }
             $hosts = $found
         }
     }
-    default { Write-Error "未知 --target: $target"; exit 1 }
+    default { Write-Fail "未知 --target: $target" }
 }
 
 foreach ($h in $hosts) { Copy-Host $h }
